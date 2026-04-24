@@ -9,9 +9,9 @@
   body { background:#0a0c0f; color:#e8e6e0; font-family:'DM Sans',sans-serif; min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px; }
   h1 { font-family:Georgia,serif; font-size:1.4rem; color:#c9a84c; margin-bottom:8px; text-align:center; }
   p { font-size:0.82rem; color:#6b7280; text-align:center; margin-bottom:24px; line-height:1.6; }
-  .card { background:#111318; border:1px solid #1e2430; border-radius:16px; padding:20px; width:100%; max-width:480px; margin-bottom:16px; }
+  .card { background:#111318; border:1px solid #1e2430; border-radius:16px; padding:20px; width:100%; max-width:520px; margin-bottom:16px; }
   .card h2 { font-size:0.9rem; color:#e8e6e0; margin-bottom:12px; }
-  textarea { width:100%; height:110px; background:#181c23; border:1px solid #1e2430; border-radius:10px; padding:10px; color:#e8e6e0; font-family:monospace; font-size:0.65rem; resize:none; outline:none; margin-bottom:10px; }
+  textarea { width:100%; height:120px; background:#181c23; border:1px solid #1e2430; border-radius:10px; padding:10px; color:#e8e6e0; font-family:monospace; font-size:0.65rem; resize:none; outline:none; margin-bottom:10px; }
   textarea:focus { border-color:#c9a84c; }
   button { width:100%; padding:13px; border:none; border-radius:12px; font-size:0.88rem; font-weight:600; cursor:pointer; margin-bottom:8px; }
   .btn-gold { background:linear-gradient(135deg,#c9a84c,#8b6914); color:#0a0c0f; }
@@ -21,47 +21,107 @@
   .err { background:rgba(248,113,113,0.1); color:#f87171; }
   .step { display:flex; align-items:center; gap:10px; margin-bottom:10px; font-size:0.8rem; color:#9ca3af; }
   .num { background:#c9a84c; color:#000; border-radius:50%; width:22px; height:22px; display:flex; align-items:center; justify-content:center; font-size:0.72rem; font-weight:700; flex-shrink:0; }
+  .method-btns { display:flex; gap:8px; margin-bottom:14px; }
+  .method-btn { flex:1; padding:8px; border-radius:10px; border:1px solid #1e2430; background:#181c23; color:#9ca3af; font-size:0.78rem; cursor:pointer; }
+  .method-btn.active { border-color:#c9a84c; background:rgba(201,168,76,0.1); color:#e8c97a; }
 </style>
 </head>
 <body>
-<h1>📦 Dashboard Data Transfer</h1>
-<p>Transfer your financial data between your<br>local file and GitHub Pages dashboard</p>
+<h1>Dashboard Data Transfer</h1>
+<p>Transfer your financial data between browsers or devices</p>
 
 <div class="card">
-  <h2>Step 1 — Export from local file</h2>
-  <div class="step"><div class="num">1</div><span>Open your local finance-dashboard.html from Files app</span></div>
-  <div class="step"><div class="num">2</div><span>Go to Import tab → scroll to bottom</span></div>
-  <div class="step"><div class="num">3</div><span>Tap "⬆ Export" → "📋 Copy to Clipboard"</span></div>
-  <div class="step"><div class="num">4</div><span>Come back here and paste below</span></div>
-</div>
+  <h2>Select your code format:</h2>
+  <div class="method-btns">
+    <button class="method-btn active" id="btn-encoded" onclick="setMethod('encoded',this)">Transfer Code<br><span style="font-size:0.65rem;color:#6b7280;">From Export button</span></button>
+    <button class="method-btn" id="btn-json" onclick="setMethod('json',this)">Raw JSON<br><span style="font-size:0.65rem;color:#6b7280;">From browser console</span></button>
+  </div>
 
-<div class="card">
-  <h2>Step 2 — Paste your transfer code</h2>
-  <textarea id="code-input" placeholder="Paste your WD_TRANSFER_V1:... code here"></textarea>
-  <button class="btn-gold" onclick="doTransfer()">⬇ Transfer to Dashboard</button>
-  <button class="btn-gray" onclick="window.location.href='https://newmanlo.github.io/dashboard/finance-dashboard-private.html'">← Go to Dashboard</button>
+  <textarea id="code-input" placeholder="Paste your code here..."></textarea>
+  <button class="btn-gold" onclick="doTransfer()">Transfer to Dashboard</button>
+  <button class="btn-gray" onclick="window.location.href='https://newmanlo.github.io/dashboard/finance-dashboard-private.html'">Go to Dashboard</button>
   <div id="status" class="status"></div>
 </div>
 
+<div class="card">
+  <h2>How to get your code</h2>
+  <div style="margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #1e2430;">
+    <div style="font-size:0.75rem;color:#c9a84c;margin-bottom:6px;">From Transfer Code (dashboard Export button):</div>
+    <div class="step"><div class="num">1</div><span>Open dashboard with your data</span></div>
+    <div class="step"><div class="num">2</div><span>Import tab -> scroll to bottom -> Export</span></div>
+    <div class="step"><div class="num">3</div><span>Copy code -> paste above -> select "Transfer Code"</span></div>
+  </div>
+  <div>
+    <div style="font-size:0.75rem;color:#c9a84c;margin-bottom:6px;">From Browser Console (Safari/Chrome):</div>
+    <div class="step"><div class="num">1</div><span>Open dashboard with your data in Safari</span></div>
+    <div class="step"><div class="num">2</div><span>Safari -> Develop -> Show JavaScript Console</span></div>
+    <div class="step"><div class="num">3</div><span>Paste the console command -> press Enter</span></div>
+    <div class="step"><div class="num">4</div><span>Cmd+V here -> select "Raw JSON"</span></div>
+  </div>
+</div>
+
 <script>
+let method = 'encoded';
+function setMethod(m, btn) {
+  method = m;
+  document.querySelectorAll('.method-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('code-input').placeholder = m === 'encoded'
+    ? 'Paste your WD_TRANSFER_V1:... code here...'
+    : 'Paste your {"wd_accounts":...} JSON here...';
+}
+
 function doTransfer() {
   const raw = document.getElementById('code-input').value.trim();
   const status = document.getElementById('status');
   status.style.display = 'block';
-
-  if (!raw) { status.className='status err'; status.textContent='Please paste your transfer code first.'; return; }
-  if (!raw.startsWith('WD_TRANSFER_V1:')) { status.className='status err'; status.textContent='Invalid code — make sure you copied the full code.'; return; }
+  if (!raw) { status.className='status err'; status.textContent='Please paste your code first.'; return; }
 
   try {
-    const data = JSON.parse(decodeURIComponent(escape(atob(raw.replace('WD_TRANSFER_V1:','')))));
+    let data;
+
+    if (method === 'encoded' || raw.startsWith('WD_TRANSFER_V1:')) {
+      // Encoded transfer code format
+      const code = raw.replace('WD_TRANSFER_V1:','');
+      data = JSON.parse(decodeURIComponent(escape(atob(code))));
+
+    } else {
+      // Raw JSON from browser console
+      data = JSON.parse(raw);
+      // Handle both formats:
+      // Format 1: { wd_accounts: "...", wd_holdings: "..." } (stringified values)
+      // Format 2: { wd_accounts: {...}, wd_holdings: {...} } (parsed values)
+      Object.keys(data).forEach(k => {
+        if (typeof data[k] === 'object' && data[k] !== null) {
+          data[k] = JSON.stringify(data[k]);
+        }
+      });
+    }
+
+    // Filter out null/undefined values
     const restored = [];
-    Object.entries(data).forEach(([k,v]) => { localStorage.setItem(k,v); restored.push(k.replace('wd_','')); });
+    Object.entries(data).forEach(([k,v]) => {
+      if (v && v !== 'null' && v !== 'undefined') {
+        localStorage.setItem(k, typeof v === 'string' ? v : JSON.stringify(v));
+        restored.push(k.replace('wd_',''));
+      }
+    });
+
+    if (!restored.length) {
+      status.className='status err';
+      status.textContent='No valid data found in the code. Try the other format option.';
+      return;
+    }
+
     status.className='status ok';
-    status.textContent='✓ Restored: ' + restored.join(', ') + '. Redirecting to dashboard...';
-    setTimeout(() => { window.location.href='https://newmanlo.github.io/dashboard/finance-dashboard-private.html'; }, 2000);
+    status.textContent='Restored: ' + restored.join(', ') + '. Redirecting...';
+    setTimeout(() => {
+      window.location.href='https://newmanlo.github.io/dashboard/finance-dashboard-private.html';
+    }, 2000);
+
   } catch(e) {
     status.className='status err';
-    status.textContent='Error: ' + e.message;
+    status.textContent='Error: ' + e.message + '. Try selecting the other format option above.';
   }
 }
 </script>
