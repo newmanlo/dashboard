@@ -1893,10 +1893,19 @@ async function reconcileSharesFromBalance(acctId, newBalance) {
   log('Reconciling ' + singleFund.ticker + ' shares from balance $' + newBalance.toLocaleString() + '...');
 
   try {
-    const url = PRICE_PROXY + encodeURIComponent(YAHOO_URL + yahooSym + '&fields=regularMarketPrice');
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
+    let data = null;
+    let lastErr = '';
+    for (const proxy of PRICE_PROXIES) {
+      try {
+        const url = proxy + encodeURIComponent(YAHOO_URL + yahooSym + '&fields=regularMarketPrice');
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        if (!res.ok) { lastErr = 'HTTP ' + res.status; continue; }
+        data = await res.json();
+        if (data?.quoteResponse?.result?.length) break;
+        data = null;
+      } catch(e) { lastErr = e.message; continue; }
+    }
+    if (!data) throw new Error('All proxies failed: ' + lastErr);
     const quote = data?.quoteResponse?.result?.[0];
     if (!quote) throw new Error('No quote returned');
 
@@ -2259,8 +2268,13 @@ function showTab(name, btn) {
 // ── LIVE STOCK PRICE UPDATER ──────────────────────────────────────
 // Uses Yahoo Finance API via CORS proxy — no API key required
 
-const PRICE_PROXY = 'https://corsproxy.io/?url=';
-const YAHOO_URL   = 'https://query1.finance.yahoo.com/v7/finance/quote?symbols=';
+// Multiple CORS proxies with fallback
+const PRICE_PROXIES = [
+  'https://api.allorigins.win/raw?url=',
+  'https://corsproxy.io/?url=',
+  'https://cors-anywhere.herokuapp.com/',
+];
+const YAHOO_URL = 'https://query1.finance.yahoo.com/v7/finance/quote?symbols=';
 
 // Map our internal tickers to Yahoo Finance symbols
 const TICKER_MAP = {
@@ -2295,10 +2309,19 @@ async function refreshStockPrices() {
   if (status) status.textContent = `Fetching ${tickers.length} tickers: ${tickers.slice(0,5).join(', ')}${tickers.length>5?'...':''}`;
 
   try {
-    const url = PRICE_PROXY + encodeURIComponent(YAHOO_URL + tickers.join(',') + '&fields=regularMarketPrice,regularMarketChangePercent,shortName');
-    const res = await fetch(url);
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
+    let data = null;
+    let lastErr = '';
+    for (const proxy of PRICE_PROXIES) {
+      try {
+        const url = proxy + encodeURIComponent(YAHOO_URL + tickers.join(',') + '&fields=regularMarketPrice,regularMarketChangePercent,shortName');
+        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+        if (!res.ok) { lastErr = 'HTTP ' + res.status; continue; }
+        data = await res.json();
+        if (data?.quoteResponse?.result?.length) break; // success
+        data = null;
+      } catch(e) { lastErr = e.message; continue; }
+    }
+    if (!data) throw new Error('All proxies failed. Last error: ' + lastErr);
     const quotes = data?.quoteResponse?.result || [];
 
     if (!quotes.length) throw new Error('No quotes returned');
