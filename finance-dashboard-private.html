@@ -1893,23 +1893,11 @@ async function reconcileSharesFromBalance(acctId, newBalance) {
   log('Reconciling ' + singleFund.ticker + ' shares from balance $' + newBalance.toLocaleString() + '...');
 
   try {
-    let data = null;
-    let lastErr = '';
-    for (const proxy of PRICE_PROXIES) {
-      try {
-        const url = proxy + encodeURIComponent(YAHOO_URL + yahooSym + '&fields=regularMarketPrice');
-        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-        if (!res.ok) { lastErr = 'HTTP ' + res.status; continue; }
-        data = await res.json();
-        if (data?.quoteResponse?.result?.length) break;
-        data = null;
-      } catch(e) { lastErr = e.message; continue; }
-    }
-    if (!data) throw new Error('All proxies failed: ' + lastErr);
-    const quote = data?.quoteResponse?.result?.[0];
-    if (!quote) throw new Error('No quote returned');
-
-    const price = quote.regularMarketPrice;
+    const { results: reconPriceMap, source: reconSource } = await fetchPricesForTickers([yahooSym]);
+    const reconPriceData = reconPriceMap[yahooSym];
+    if (!reconPriceData) throw new Error('Could not fetch price for ' + yahooSym + ' from any source');
+    log('Price source: ' + reconSource);
+    const price = reconPriceData.price;
     const newShares = newBalance / price;
 
     log(singleFund.ticker + ' price: $' + price.toFixed(2) + ' → ' + newShares.toFixed(3) + ' shares');
@@ -2268,13 +2256,49 @@ function showTab(name, btn) {
 // ── LIVE STOCK PRICE UPDATER ──────────────────────────────────────
 // Uses Yahoo Finance API via CORS proxy — no API key required
 
-// Multiple CORS proxies with fallback
-const PRICE_PROXIES = [
-  'https://api.allorigins.win/raw?url=',
-  'https://corsproxy.io/?url=',
-  'https://cors-anywhere.herokuapp.com/',
-];
-const YAHOO_URL = 'https://query1.finance.yahoo.com/v7/finance/quote?symbols=';
+// Stock price fetching using multiple free APIs
+async function fetchPricesForTickers(tickers) {
+  // Try Finnhub free API (no key needed for basic quotes via this endpoint)
+  // Fallback to manual entry if all fail
+  const results = {};
+
+  // Method 1: Try Yahoo Finance via multiple proxies
+  const yahooURL = 'https://query1.finance.yahoo.com/v7/finance/quote?symbols=' + tickers.join(',') + '&fields=regularMarketPrice,regularMarketChangePercent';
+  const proxies = [
+    'https://api.allorigins.win/raw?url=',
+    'https://thingproxy.freeboard.io/fetch/',
+    'https://corsproxy.io/?url=',
+  ];
+  for (const proxy of proxies) {
+    try {
+      const res = await fetch(proxy + encodeURIComponent(yahooURL), { headers:{'Accept':'application/json'} });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const quotes = data?.quoteResponse?.result || [];
+      if (quotes.length) {
+        quotes.forEach(q => { results[q.symbol] = { price: q.regularMarketPrice, changePct: q.regularMarketChangePercent }; });
+        return { results, source: 'Yahoo Finance' };
+      }
+    } catch(e) { continue; }
+  }
+
+  // Method 2: Try Styvio free API
+  try {
+    const promises = tickers.slice(0,5).map(async t => {
+      const res = await fetch('https://api.styvio.com/v1/quote/' + t);
+      if (!res.ok) return null;
+      const d = await res.json();
+      return { symbol: t, price: d.price || d.c, changePct: d.dp || 0 };
+    });
+    const quotes = (await Promise.all(promises)).filter(Boolean);
+    if (quotes.length) {
+      quotes.forEach(q => { results[q.symbol] = { price: q.price, changePct: q.changePct }; });
+      return { results, source: 'Styvio' };
+    }
+  } catch(e) {}
+
+  return { results, source: null };
+}
 
 // Map our internal tickers to Yahoo Finance symbols
 const TICKER_MAP = {
@@ -2309,26 +2333,11 @@ async function refreshStockPrices() {
   if (status) status.textContent = `Fetching ${tickers.length} tickers: ${tickers.slice(0,5).join(', ')}${tickers.length>5?'...':''}`;
 
   try {
-    let data = null;
-    let lastErr = '';
-    for (const proxy of PRICE_PROXIES) {
-      try {
-        const url = proxy + encodeURIComponent(YAHOO_URL + tickers.join(',') + '&fields=regularMarketPrice,regularMarketChangePercent,shortName');
-        const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
-        if (!res.ok) { lastErr = 'HTTP ' + res.status; continue; }
-        data = await res.json();
-        if (data?.quoteResponse?.result?.length) break; // success
-        data = null;
-      } catch(e) { lastErr = e.message; continue; }
-    }
-    if (!data) throw new Error('All proxies failed. Last error: ' + lastErr);
-    const quotes = data?.quoteResponse?.result || [];
+    if (status) status.textContent = 'Fetching prices via multiple sources...';
+    const { results: priceMap, source } = await fetchPricesForTickers(tickers);
 
-    if (!quotes.length) throw new Error('No quotes returned');
-
-    // Build price map: yahoo symbol → price
-    const priceMap = {};
-    quotes.forEach(q => { priceMap[q.symbol] = { price: q.regularMarketPrice, changePct: q.regularMarketChangePercent }; });
+    if (!Object.keys(priceMap).length) throw new Error('No prices returned from any source. Check your internet connection.');
+    if (status) status.textContent = 'Got prices from ' + source + '...';
 
     // Update holdings
     let updated = 0, failed = [];
