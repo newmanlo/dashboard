@@ -765,10 +765,16 @@
     <!-- Account switcher -->
     <div class="section-title" style="margin-top:4px;">
       <h2>Holdings by Account</h2>
-      <button onclick="refreshStockPrices()" id="refresh-prices-btn"
-        style="font-size:0.72rem;color:var(--gold);background:none;border:1px solid var(--gold);border-radius:8px;padding:4px 12px;cursor:pointer;">
-        ↻ Live Prices
-      </button>
+      <div style="display:flex;gap:6px;">
+        <button onclick="updateFundShares()"
+          style="font-size:0.72rem;color:var(--text-muted);background:none;border:1px solid var(--border);border-radius:8px;padding:4px 10px;cursor:pointer;">
+          Edit Shares
+        </button>
+        <button onclick="refreshStockPrices()" id="refresh-prices-btn"
+          style="font-size:0.72rem;color:var(--gold);background:none;border:1px solid var(--gold);border-radius:8px;padding:4px 12px;cursor:pointer;">
+          &#x21BB; Live Prices
+        </button>
+      </div>
     </div>
     <div id="price-refresh-status" style="padding:0 20px 8px;font-size:0.72rem;color:var(--text-muted);display:none;"></div>
     <div class="acct-tabs" id="acct-tabs"></div>
@@ -941,6 +947,23 @@
       🔄 Reset cached account data
     </button>
   </div>
+
+  <div class="import-card" style="margin-bottom:80px;">
+    <h3>📦 Transfer My Data</h3>
+    <p style="font-size:0.78rem;color:var(--text-muted);margin:4px 0 14px;">Move all your data to a new device or URL</p>
+    <button class="monte-btn" style="margin-bottom:10px;" onclick="exportAllData()">⬆ Export — Generate Transfer Code</button>
+    <div id="export-output" style="display:none;">
+      <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:6px;">Copy this entire code and paste it on your new dashboard:</div>
+      <textarea id="export-code" style="width:100%;height:120px;background:var(--surface2);border:1px solid var(--gold);border-radius:10px;padding:10px;color:var(--text);font-family:'DM Mono',monospace;font-size:0.65rem;resize:none;outline:none;" readonly></textarea>
+      <button onclick="copyExportCode()" style="width:100%;margin-top:8px;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--gold-light);font-size:0.8rem;cursor:pointer;">📋 Copy to Clipboard</button>
+      <div id="copy-confirm" style="display:none;text-align:center;font-size:0.75rem;color:var(--green);margin-top:6px;">✓ Copied! Now paste on your GitHub Pages dashboard</div>
+    </div>
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border);">
+      <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:8px;">Already have a code? Paste it here to restore:</div>
+      <textarea id="import-code" style="width:100%;height:100px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:10px;color:var(--text);font-family:'DM Mono',monospace;font-size:0.65rem;resize:none;outline:none;" placeholder="Paste your transfer code here..."></textarea>
+      <button onclick="importAllData()" style="width:100%;margin-top:8px;padding:12px;background:linear-gradient(135deg,#c9a84c,#8b6914);border:none;border-radius:12px;color:#0a0c0f;font-weight:600;font-size:0.88rem;cursor:pointer;">⬇ Import — Restore My Data</button>
+    </div>
+  </div>
 </div>
 
 <!-- Wellness Tab -->
@@ -1008,6 +1031,43 @@
       <div class="input-group"><label>Cap Gains Rate (%)</label><input type="number" id="tax-capgains" value="20" oninput="calcTaxLiability()"></div>
     </div>
     <div id="tax-results"></div>
+  </div>
+
+  <!-- Savings Analyzer -->
+  <div class="plan-card">
+    <div class="plan-card-header">
+      <h3>Savings Analyzer</h3>
+      <button class="plan-edit-btn" onclick="toggleSection('savings-manual')">Edit</button>
+    </div>
+    <p>Estimated annual savings based on income and spending</p>
+
+    <!-- Manual entry -->
+    <div id="savings-manual" style="display:none;margin-bottom:14px;">
+      <div class="monte-inputs">
+        <div class="input-group"><label>Monthly Income ($)</label>
+          <input type="number" id="sav-income" placeholder="e.g. 9200" oninput="calcSavings()">
+        </div>
+        <div class="input-group"><label>Employer Match ($)</label>
+          <input type="number" id="sav-match" placeholder="e.g. 500" oninput="calcSavings()">
+        </div>
+      </div>
+    </div>
+
+    <!-- Auto-populated from statements -->
+    <div id="savings-statement-data" style="display:none;background:var(--surface2);border-radius:10px;padding:12px;margin-bottom:14px;font-size:0.75rem;color:var(--text-muted);">
+      <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;color:var(--gold-light);">From Imported Statements</div>
+      <div id="savings-stmt-detail"></div>
+    </div>
+
+    <!-- Period selector -->
+    <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
+      <button class="asset-acct-btn active" id="sav-period-2025" onclick="setSavingsPeriod('2025',this)">2025</button>
+      <button class="asset-acct-btn" id="sav-period-2026" onclick="setSavingsPeriod('2026',this)">2026</button>
+      <button class="asset-acct-btn" id="sav-period-all" onclick="setSavingsPeriod('all',this)">All Time</button>
+    </div>
+
+    <div id="savings-results"></div>
+    <div style="height:180px;margin-top:14px;"><canvas id="savingsChart"></canvas></div>
   </div>
 
   <!-- Insurance & Estate Checklist -->
@@ -1385,8 +1445,12 @@ const spending = [
 
 // Per-account holdings: { ticker, name, shares, costBasis, currentValue, type }
 let holdingsData = JSON.parse(localStorage.getItem('wd_holdings') || 'null') || {
-  vanguard401: [],
-  vanguard: [],
+  vanguard401: [
+    { ticker:'VTIVX', name:'Vanguard Target Retirement 2045', shares:592.265, costBasis:0, currentValue:0, type:'Fund' },
+  ],
+  vanguard: [
+    { ticker:'VTIVX', name:'Vanguard Target Retirement 2045', shares:1122.986, costBasis:38507.21, currentValue:38507.21, type:'Fund' },
+  ],
   merrill: [],
   alight: [],
 };
@@ -1779,6 +1843,85 @@ function switchProjectionView(mode) {
   monteChartInst.update();
 }
 
+function updateFundShares() {
+  const funds = [];
+  Object.entries(holdingsData).forEach(function(entry) {
+    var acctId = entry[0], arr = entry[1];
+    arr.forEach(function(h, idx) {
+      if (['Fund','ETF'].includes(h.type)) {
+        var acct = accounts.find(function(a){return a.id===acctId;});
+        funds.push({ acctId:acctId, idx:idx, ticker:h.ticker, name:h.name, shares:h.shares,
+          label:(acct?acct.name:acctId)+' - '+h.ticker });
+      }
+    });
+  });
+  if (!funds.length) { alert('No funds found in your holdings.'); return; }
+  var target;
+  if (funds.length === 1) {
+    target = funds[0];
+  } else {
+    var opts = funds.map(function(f,i){return (i+1)+'. '+f.label+' ('+f.shares+' shares)';}).join('\n');
+    var choice = prompt('Which fund? Enter number:\n' + opts);
+    var cidx = parseInt(choice)-1;
+    if (isNaN(cidx)||cidx<0||cidx>=funds.length) return;
+    target = funds[cidx];
+  }
+  var newShares = parseFloat(prompt('Enter new share count for '+target.ticker+':', target.shares));
+  if (isNaN(newShares) || newShares <= 0) return;
+  var costStr = prompt('Enter total cost basis (what you paid in). Enter 0 if unknown:', holdingsData[target.acctId][target.idx].costBasis || 0);
+  var costBasis = parseFloat(costStr);
+  holdingsData[target.acctId][target.idx].shares = newShares;
+  if (!isNaN(costBasis)) holdingsData[target.acctId][target.idx].costBasis = costBasis;
+  saveHoldings();
+  alert('Updated ' + target.ticker + ' to ' + newShares + ' shares. Tap Live Prices to refresh value.');
+  renderHoldings();
+}
+
+// ── SHARE RECONCILIATION FROM BALANCE ────────────────────────────
+// When a new statement is imported, fetch live NAV and back-calculate shares
+async function reconcileSharesFromBalance(acctId, newBalance) {
+  const holdings = holdingsData[acctId];
+  if (!holdings || !holdings.length) return;
+
+  // Only reconcile single-fund accounts (Vanguard 401k and Roth IRA)
+  const singleFund = holdings.length === 1 ? holdings[0] : null;
+  if (!singleFund) return;
+
+  const yahooSym = TICKER_MAP[singleFund.ticker];
+  if (!yahooSym) return;
+
+  log('Reconciling ' + singleFund.ticker + ' shares from balance $' + newBalance.toLocaleString() + '...');
+
+  try {
+    const url = PRICE_PROXY + encodeURIComponent(YAHOO_URL + yahooSym + '&fields=regularMarketPrice');
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    const quote = data?.quoteResponse?.result?.[0];
+    if (!quote) throw new Error('No quote returned');
+
+    const price = quote.regularMarketPrice;
+    const newShares = newBalance / price;
+
+    log(singleFund.ticker + ' price: $' + price.toFixed(2) + ' → ' + newShares.toFixed(3) + ' shares');
+
+    singleFund.shares = +newShares.toFixed(3);
+    singleFund.currentValue = +newBalance.toFixed(2);
+    saveHoldings();
+
+    // Update account balance
+    const acct = accounts.find(a => a.id === acctId);
+    if (acct) { acct.balance = +newBalance.toFixed(2); saveAccounts(); }
+
+    log('Shares updated: ' + singleFund.ticker + ' = ' + singleFund.shares + ' shares @ $' + price.toFixed(2));
+    renderHoldings();
+    renderAccounts();
+
+  } catch(err) {
+    log('Could not fetch live price for reconciliation: ' + err.message + ' — update shares manually via Edit Shares');
+  }
+}
+
 function refreshStartBalance() {
   const nw = calcNetWorth();
   const inp = document.getElementById('mc-start-balance');
@@ -2124,7 +2267,7 @@ const TICKER_MAP = {
   'AAPL':'AAPL','BRKB':'BRK-B','CSCO':'CSCO','CL':'CL','JNJ':'JNJ',
   'JPM':'JPM','MRK':'MRK','MSFT':'MSFT','UNP':'UNP','WFC':'WFC',
   'CAIBX':'CAIBX','ANCFX':'ANCFX','ANWPX':'ANWPX','AWSHX':'AWSHX',
-  'VTI':'VTI','VXUS':'VXUS','BND':'BND',
+  'VTI':'VTI','VXUS':'VXUS','BND':'BND','VTIVX':'VTIVX',
   'VIIIX':'VIIIX','VMCIX':'VMCIX',
 };
 
@@ -2209,7 +2352,12 @@ async function refreshStockPrices() {
 }
 
 
+// ── SAVINGS ANALYZER ────────────────────────────────────────────
+
+
 // ── WELLNESS TAB ────────────────────────────────────────────────
+
+
 // ── WELLNESS TAB ──────────────────────────────────────────────────
 let wellnessInited = false;
 let cfChartInst = null;
@@ -2623,10 +2771,277 @@ function initWellnessTab() {
   renderCashFlow();
   calcTaxLiability();
   renderEstateList();
+  calcSavings();
 }
 
 
 // ── TREND ANALYSIS TAB ────────────────────────────────────────────
+// ── SAVINGS ANALYZER ────────────────────────────────────────────
+// ── SAVINGS ANALYZER ─────────────────────────────────────────────
+
+let savingsData = JSON.parse(localStorage.getItem('wd_savings_data') || 'null') || {
+  transactions: [], // { date, amount, description, category, source, year, month }
+  income: [],       // { date, amount, description, source, year, month }
+};
+function saveSavingsData() { localStorage.setItem('wd_savings_data', JSON.stringify(savingsData)); }
+
+let savingsPeriod = '2025';
+let savingsChartInst = null;
+
+function setSavingsPeriod(period, btn) {
+  savingsPeriod = period;
+  document.querySelectorAll('[id^="sav-period-"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  calcSavings();
+}
+
+// Category keywords for auto-classification
+const SPENDING_CATS = {
+  Housing:   ['rent','mortgage','hoa','property tax','insurance','utilities','electric','gas','water','comcast','att','verizon'],
+  Food:      ['restaurant','food','grocery','grubhub','doordash','ubereats','starbucks','mcdonalds','chipotle','whole foods','trader joe','jewel'],
+  Transport: ['uber','lyft','gas station','parking','cta','metra','transit','auto','car wash','shell','bp','citgo'],
+  Healthcare:['pharmacy','cvs','walgreens','doctor','dental','vision','hospital','medical','health'],
+  Shopping:  ['amazon','target','walmart','costco','best buy','apple','nordstrom','macy'],
+  Travel:    ['airline','hotel','airbnb','expedia','booking','delta','united','marriott'],
+  Entertainment:['netflix','spotify','hulu','movie','theater','concert','ticketmaster'],
+  Other:     [],
+};
+
+function classifyTransaction(desc) {
+  const lower = (desc || '').toLowerCase();
+  for (const [cat, keywords] of Object.entries(SPENDING_CATS)) {
+    if (keywords.some(k => lower.includes(k))) return cat;
+  }
+  return 'Other';
+}
+
+// Parse Chase CSV format
+function parseChaseCSV(rows, source) {
+  const transactions = [], income = [];
+  // Chase format: Transaction Date, Post Date, Description, Category, Type, Amount, Memo
+  const header = rows[0] ? rows[0].map(h => (h||'').toLowerCase().trim()) : [];
+  const dateCol = header.findIndex(h => h.includes('transaction date') || h.includes('date'));
+  const descCol = header.findIndex(h => h.includes('description'));
+  const amtCol  = header.findIndex(h => h.includes('amount'));
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.every(c => !c)) continue;
+    const dateStr = row[dateCol] || '';
+    const desc    = row[descCol] || '';
+    const amt     = parseFloat((row[amtCol] || '0').replace(/[$,]/g,''));
+    if (isNaN(amt) || !dateStr) continue;
+
+    const parts = dateStr.split('/');
+    const year  = parts.length === 3 ? (parts[2].length === 2 ? '20'+parts[2] : parts[2]) : '';
+    const month = parts[0] ? parts[0].padStart(2,'0') : '';
+    const date  = year + '-' + month + '-' + (parts[1]||'').padStart(2,'0');
+
+    if (amt < 0) {
+      // Debit/spending
+      transactions.push({ date, amount: Math.abs(amt), description: desc,
+        category: classifyTransaction(desc), source, year, month });
+    } else if (amt > 0) {
+      // Credit/income (payroll, transfers in)
+      const isIncome = /payroll|direct dep|salary|zelle|venmo|transfer in/i.test(desc);
+      if (isIncome) income.push({ date, amount: amt, description: desc, source, year, month });
+    }
+  }
+  return { transactions, income };
+}
+
+// Parse BarclayCard CSV format
+function parseBarclayCSV(rows, source) {
+  const transactions = [];
+  // BarclayCard format: Transaction Date, Description, Category, Amount
+  const header = rows[0] ? rows[0].map(h => (h||'').toLowerCase().trim()) : [];
+  const dateCol = header.findIndex(h => h.includes('date'));
+  const descCol = header.findIndex(h => h.includes('description'));
+  const amtCol  = header.findIndex(h => h.includes('amount'));
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.every(c => !c)) continue;
+    const dateStr = row[dateCol] || '';
+    const desc    = row[descCol] || '';
+    const amt     = Math.abs(parseFloat((row[amtCol] || '0').replace(/[$,]/g,'')));
+    if (isNaN(amt) || !dateStr || amt === 0) continue;
+
+    const parts = dateStr.split('/');
+    const year  = parts.length === 3 ? (parts[2].length === 2 ? '20'+parts[2] : parts[2]) : '';
+    const month = parts[0] ? parts[0].padStart(2,'0') : '';
+    const date  = year + '-' + month + '-' + (parts[1]||'').padStart(2,'0');
+
+    transactions.push({ date, amount: amt, description: desc,
+      category: classifyTransaction(desc), source, year, month });
+  }
+  return { transactions, income: [] };
+}
+
+// Called from Import tab when Chase/Barclaycard CSV is parsed
+function processSavingsImport(rows, instId) {
+  let parsed;
+  if (instId === 'chase') {
+    parsed = parseChaseCSV(rows, 'Chase');
+  } else if (instId === 'barclaycard') {
+    parsed = parseBarclayCSV(rows, 'BarclayCard');
+  } else return;
+
+  // Merge — avoid duplicates by date+amount+desc
+  const existing = new Set(savingsData.transactions.map(t => t.date+'|'+t.amount+'|'+t.description));
+  let newTx = 0, newInc = 0;
+  parsed.transactions.forEach(t => {
+    const key = t.date+'|'+t.amount+'|'+t.description;
+    if (!existing.has(key)) { savingsData.transactions.push(t); existing.add(key); newTx++; }
+  });
+  const existingInc = new Set(savingsData.income.map(t => t.date+'|'+t.amount+'|'+t.description));
+  parsed.income.forEach(t => {
+    const key = t.date+'|'+t.amount+'|'+t.description;
+    if (!existingInc.has(key)) { savingsData.income.push(t); existingInc.add(key); newInc++; }
+  });
+
+  saveSavingsData();
+  log('Savings: imported ' + newTx + ' transactions, ' + newInc + ' income entries from ' + (instId==='chase'?'Chase':'BarclayCard'));
+
+  // Show statement data panel
+  calcSavings();
+}
+
+function calcSavings() {
+  const el = document.getElementById('savings-results');
+  if (!el) return;
+
+  // Filter by period
+  const txAll  = savingsData.transactions;
+  const incAll = savingsData.income;
+  const filterYear = savingsPeriod === 'all' ? null : savingsPeriod;
+  const tx  = filterYear ? txAll.filter(t => t.year === filterYear) : txAll;
+  const inc = filterYear ? incAll.filter(t => t.year === filterYear) : incAll;
+
+  // Manual income override
+  const manualIncome = parseFloat(document.getElementById('sav-income')?.value || 0) * 12;
+  const employerMatch = parseFloat(document.getElementById('sav-match')?.value || 0) * 12;
+
+  const totalSpend  = tx.reduce((s,t) => s+t.amount, 0);
+  const stmtIncome  = inc.reduce((s,t) => s+t.amount, 0);
+  const totalIncome = manualIncome > 0 ? manualIncome + employerMatch : stmtIncome + employerMatch;
+  const netSavings  = totalIncome - totalSpend;
+  const savingsRate = totalIncome > 0 ? (netSavings/totalIncome*100) : 0;
+
+  // Monthly breakdown
+  const months = {};
+  tx.forEach(t => {
+    const key = t.year+'-'+t.month;
+    if (!months[key]) months[key] = { spending:0, income:0 };
+    months[key].spending += t.amount;
+  });
+  inc.forEach(t => {
+    const key = t.year+'-'+t.month;
+    if (!months[key]) months[key] = { spending:0, income:0 };
+    months[key].income += t.amount;
+  });
+
+  // Category breakdown
+  const cats = {};
+  tx.forEach(t => { cats[t.category] = (cats[t.category]||0) + t.amount; });
+  const topCats = Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,6);
+
+  const hasData = tx.length > 0 || inc.length > 0;
+  const periodLabel = savingsPeriod === 'all' ? 'All Time' : savingsPeriod;
+
+  // Show statement data panel if we have imported data
+  const stmtPanel = document.getElementById('savings-statement-data');
+  const stmtDetail = document.getElementById('savings-stmt-detail');
+  if (stmtPanel && tx.length > 0) {
+    stmtPanel.style.display = 'block';
+    const years = [...new Set(txAll.map(t=>t.year))].sort();
+    if (stmtDetail) stmtDetail.innerHTML = years.map(y => {
+      const ytx = txAll.filter(t=>t.year===y);
+      const yinc = incAll.filter(t=>t.year===y);
+      return '<div style="margin-bottom:4px;"><strong style="color:var(--text);">' + y + '</strong>: ' +
+        ytx.length + ' transactions · ' + fmt(ytx.reduce((s,t)=>s+t.amount,0),true) + ' spending' +
+        (yinc.length ? ' · ' + fmt(yinc.reduce((s,t)=>s+t.amount,0),true) + ' income detected' : '') + '</div>';
+    }).join('');
+  }
+
+  if (!hasData && manualIncome === 0) {
+    el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:0.8rem;">Import your Chase or BarclayCard CSV statements to auto-populate,<br>or tap Edit to enter income manually.</div>';
+    return;
+  }
+
+  const rateColor = savingsRate >= 20 ? 'var(--green)' : savingsRate >= 10 ? 'var(--gold-light)' : 'var(--red)';
+
+  el.innerHTML = `
+    <div style="text-align:center;padding:8px 0 16px;">
+      <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;">${periodLabel} Savings Rate</div>
+      <div style="font-family:'Playfair Display',serif;font-size:2.4rem;font-weight:700;color:${rateColor};">${savingsRate.toFixed(1)}%</div>
+      <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">${savingsRate>=20?'Excellent — well above the recommended 20%':savingsRate>=10?'Good — working toward the 20% target':'Below recommended — consider reviewing spending'}</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;">
+      <div style="background:var(--surface2);border-radius:10px;padding:10px;text-align:center;">
+        <div style="font-size:0.62rem;color:var(--text-muted);text-transform:uppercase;">Income</div>
+        <div style="font-family:'DM Mono',monospace;font-size:0.82rem;color:var(--green);margin-top:4px;">${fmt(totalIncome,true)}</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:10px;padding:10px;text-align:center;">
+        <div style="font-size:0.62rem;color:var(--text-muted);text-transform:uppercase;">Spending</div>
+        <div style="font-family:'DM Mono',monospace;font-size:0.82rem;color:var(--red);margin-top:4px;">${fmt(totalSpend,true)}</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:10px;padding:10px;text-align:center;">
+        <div style="font-size:0.62rem;color:var(--text-muted);text-transform:uppercase;">Saved</div>
+        <div style="font-family:'DM Mono',monospace;font-size:0.82rem;color:${netSavings>=0?'var(--green)':'var(--red)'};margin-top:4px;">${fmt(netSavings,true)}</div>
+      </div>
+    </div>
+
+    ${topCats.length ? `
+    <div style="margin-bottom:14px;">
+      <div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Top Spending Categories</div>
+      ${topCats.map(([cat,amt]) => {
+        const pct = totalSpend>0?(amt/totalSpend*100).toFixed(0):0;
+        return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
+          '<div style="font-size:0.75rem;color:var(--text-muted);width:90px;flex-shrink:0;">' + cat + '</div>' +
+          '<div style="flex:1;background:var(--border);border-radius:3px;height:6px;"><div style="width:' + pct + '%;height:100%;background:var(--gold);border-radius:3px;"></div></div>' +
+          '<div style="font-family:\'DM Mono\',monospace;font-size:0.72rem;color:var(--text);width:70px;text-align:right;">' + fmt(amt,true) + '</div>' +
+          '<div style="font-size:0.68rem;color:var(--text-muted);width:30px;text-align:right;">' + pct + '%</div>' +
+          '</div>';
+      }).join('')}
+    </div>` : ''}
+
+    <div style="background:var(--surface2);border-radius:10px;padding:12px;font-size:0.78rem;color:var(--text-dim);">
+      At this savings rate, you are adding <strong style="color:var(--green);">${fmt(Math.max(netSavings,0),true)}</strong> per ${periodLabel==='All Time'?'period':'year'} to your wealth.
+      ${totalIncome>0?'Your portfolio generates <strong style="color:var(--green);">' + fmt(154378,true) + '/yr</strong> in dividends — far exceeding your savings contributions.':''}
+    </div>`;
+
+  // Monthly chart
+  const sortedMonths = Object.keys(months).sort();
+  const ctx = document.getElementById('savingsChart')?.getContext('2d');
+  if (ctx && sortedMonths.length) {
+    if (savingsChartInst) savingsChartInst.destroy();
+    savingsChartInst = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: sortedMonths.map(m => {
+          const [y, mo] = m.split('-');
+          return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][parseInt(mo)-1] + ' ' + y.substring(2);
+        }),
+        datasets: [
+          { label:'Spending', data: sortedMonths.map(m=>months[m].spending), backgroundColor:'rgba(248,113,113,0.6)', borderRadius:4, borderWidth:0 },
+          { label:'Income',   data: sortedMonths.map(m=>months[m].income||0), backgroundColor:'rgba(74,222,128,0.6)',  borderRadius:4, borderWidth:0 },
+        ]
+      },
+      options: {
+        responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{labels:{color:'#9ca3af',font:{size:10},boxWidth:10}}, tooltip:{callbacks:{label:i=>i.dataset.label+': '+fmt(i.raw)}} },
+        scales:{
+          x:{ticks:{color:'#6b7280',font:{size:9},maxRotation:45},grid:{display:false}},
+          y:{ticks:{color:'#6b7280',callback:v=>fmt(v,true),font:{size:9}},grid:{color:'#1e2430'}}
+        }
+      }
+    });
+  }
+}
+
+
 // ── WELLNESS TAB ────────────────────────────────────────────────
 // ── TREND ANALYSIS TAB ────────────────────────────────────────────
 
@@ -3807,6 +4222,39 @@ function initPlanningTab() {
 }
 
 
+// ── DATA MIGRATION ───────────────────────────────────────────────
+function exportAllData() {
+  const keys = ['wd_accounts','wd_holdings','wd_assetclass','wd_import_history','wd_loans','wd_estate','wd_worries','wd_journal','wd_trend_history','wd_perf_history','wd_annual_spend'];
+  const data = {};
+  keys.forEach(k => { const val = localStorage.getItem(k); if (val) data[k] = val; });
+  if (!Object.keys(data).length) { alert('No saved data found. Update your balances first, then export.'); return; }
+  const code = 'WD_TRANSFER_V1:' + btoa(unescape(encodeURIComponent(JSON.stringify(data))));
+  document.getElementById('export-output').style.display = 'block';
+  document.getElementById('export-code').value = code;
+  document.getElementById('copy-confirm').style.display = 'none';
+}
+
+function copyExportCode() {
+  const ta = document.getElementById('export-code');
+  ta.select(); ta.setSelectionRange(0, 99999);
+  navigator.clipboard.writeText(ta.value).then(() => {
+    document.getElementById('copy-confirm').style.display = 'block';
+  }).catch(() => { document.execCommand('copy'); document.getElementById('copy-confirm').style.display = 'block'; });
+}
+
+function importAllData() {
+  const raw = document.getElementById('import-code')?.value?.trim();
+  if (!raw) { alert('Please paste your transfer code first.'); return; }
+  if (!raw.startsWith('WD_TRANSFER_V1:')) { alert('Invalid transfer code.'); return; }
+  try {
+    const data = JSON.parse(decodeURIComponent(escape(atob(raw.replace('WD_TRANSFER_V1:','')))));
+    const restored = [];
+    Object.entries(data).forEach(([k,v]) => { localStorage.setItem(k,v); restored.push(k.replace('wd_','')); });
+    alert('Data restored: ' + restored.join(', ') + '. Page will reload.');
+    location.reload();
+  } catch(e) { alert('Error: ' + e.message); }
+}
+
 // ── START ─────────────────────────────────────────────────────────
 // Calculate current age from DOB
 (function() {
@@ -3835,6 +4283,8 @@ const instParsers = {
   // Keywords are tried IN ORDER — first match wins, so most specific go first
   chase:       { keywords: ['ending balance','new balance','closing balance','ending daily balance'], accounts: ['chase-check','chase-save'] },
   vanguard:    { keywords: ['total account value','portfolio value','total value','ending value'], accounts: ['vanguard401','vanguard'] },
+  vanguard401k: { keywords: ['total account value','portfolio value','total value','ending value'], accounts: ['vanguard401'] },
+  vanguardroth: { keywords: ['roth cost basis','after tax cost basis','roth ira value','roth account value'], accounts: ['vanguard'] },
   merrill:     { keywords: ['net portfolio value:', 'net portfolio value', 'total assets', 'total account value','net account value'], accounts: ['merrill'] },
   alight:      { keywords: ['ending balance','account balance','hsa balance','total available'], accounts: ['alight'] },
   barclaycard: { keywords: ['new balance', 'statement balance', 'total balance due', 'current balance', 'balance due', 'total amount due'], accounts: ['barclaycard'] },
@@ -3871,6 +4321,10 @@ function parseCSV(file) {
   Papa.parse(file, {
     complete: (results) => {
       log('Parsed ' + results.data.length + ' rows from CSV');
+      // Auto-process savings data for Chase and BarclayCard
+      if (importState.inst === 'chase' || importState.inst === 'barclaycard') {
+        processSavingsImport(results.data, importState.inst);
+      }
       if (importType === 'holdings') {
         const holdings = parseHoldingsFromRows(results.data);
         log('Detected ' + holdings.length + ' holdings');
@@ -3965,6 +4419,41 @@ function extractBalanceFromRows(rows) {
 function extractBalanceFromText(text) {
   const keywords = instParsers[importState.inst]?.keywords || instParsers.other.keywords;
   const lower = text.toLowerCase();
+
+  // Special Vanguard handling — try to detect Roth IRA separately
+  if (importState.inst === 'vanguard') {
+    // Look for Roth Cost Basis / After Tax Cost Basis
+    const rothPatterns = ['roth cost basis', 'after tax cost basis', 'roth ira'];
+    for (const pat of rothPatterns) {
+      const idx = lower.indexOf(pat);
+      if (idx === -1) continue;
+      const snippet = text.substring(idx, idx+150);
+      const matches = [...snippet.matchAll(/\$?([\d]{1,3}(?:,[\d]{3})*\.\d{2})/g)];
+      for (const m of matches) {
+        const val = parseFloat(m[1].replace(/,/g,''));
+        if (val > 100) {
+          log('Vanguard Roth detected: $' + val.toLocaleString());
+          // Update Roth IRA account balance directly
+          const rothAcct = accounts.find(a => a.id === 'vanguard');
+          if (rothAcct) {
+            rothAcct.balance = val;
+            // Update cost basis in holdings
+            if (holdingsData.vanguard) {
+              const totalCurrent = holdingsData.vanguard.reduce((s,h)=>s+h.currentValue,0);
+              holdingsData.vanguard.forEach(h => { h.costBasis = val * (h.currentValue/Math.max(totalCurrent,1)); });
+            }
+            saveAccounts();
+            saveHoldings();
+            log('Roth IRA balance updated to $' + val.toLocaleString());
+          // Reconcile shares from live price
+          reconcileSharesFromBalance('vanguard', val);
+          }
+          break;
+        }
+      }
+    }
+  }
+
   // Try each keyword — stop at FIRST match
   for (const kw of keywords) {
     const idx = lower.indexOf(kw.toLowerCase());
@@ -4114,6 +4603,10 @@ function applyImport() {
   // Stamp lastUpdated on the account
   if (target) {
     target.lastUpdated = new Date().toISOString().split('T')[0];
+    // Auto-reconcile shares for Vanguard fund accounts
+    if (target.id === 'vanguard401' || target.id === 'vanguard') {
+      reconcileSharesFromBalance(target.id, bal);
+    }
   }
   const entry = { inst: importState.instName, file: importState.fileName, balance: bal, date: new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'}) };
   importHistory.unshift(entry);
