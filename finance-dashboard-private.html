@@ -1454,7 +1454,10 @@ let holdingsData = JSON.parse(localStorage.getItem('wd_holdings') || 'null') || 
     { ticker:'VTIVX', name:'Vanguard Target Retirement 2045', shares:1122.986, costBasis:38507.21, currentValue:38507.21, type:'Fund' },
   ],
   merrill: [],
-  alight: [],
+  alight: [
+    { ticker:'VFIAX', name:'Vanguard 500 Index Admiral', shares:11.486, costBasis:0, currentValue:0, type:'Fund' },
+    { ticker:'VTSNX', name:'Vanguard Total Intl Stock Index Admiral', shares:29.079, costBasis:0, currentValue:0, type:'Fund' },
+  ],
 };
 function saveHoldings() { localStorage.setItem('wd_holdings', JSON.stringify(holdingsData)); }
 
@@ -2382,7 +2385,7 @@ const TICKER_MAP = {
   'JPM':'JPM','MRK':'MRK','MSFT':'MSFT','UNP':'UNP','WFC':'WFC',
   'CAIBX':'CAIBX','ANCFX':'ANCFX','ANWPX':'ANWPX','AWSHX':'AWSHX',
   'VTI':'VTI','VXUS':'VXUS','BND':'BND','VTIVX':'VTIVX','TFDXX':'TFDXX',
-  'VIIIX':'VIIIX','VMCIX':'VMCIX',
+  'VIIIX':'VIIIX','VMCIX':'VMCIX','VFIAX':'VFIAX','VTSNX':'VTSNX',
 };
 
 // Tickers we can price (skip bonds, munis, cash)
