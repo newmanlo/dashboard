@@ -739,13 +739,15 @@
     <!-- Asset Class Allocation -->
     <div class="asset-class-card" style="margin-top:0;">
       <h3>Asset Class Allocation</h3>
+      <div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:6px;">Tap to select/deselect accounts — multiple selections aggregate</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;" id="asset-acct-switcher">
-        <button class="asset-acct-btn active" onclick="switchAssetAcct('all',this)">All Accounts</button>
-        <button class="asset-acct-btn" onclick="switchAssetAcct('merrill',this)">Merrill CMA</button>
-        <button class="asset-acct-btn" onclick="switchAssetAcct('vanguard401',this)">401(k)</button>
-        <button class="asset-acct-btn" onclick="switchAssetAcct('vanguard',this)">Roth IRA</button>
-        <button class="asset-acct-btn" onclick="switchAssetAcct('alight',this)">HSA</button>
+        <button class="asset-acct-btn active" id="aas-all" onclick="toggleAssetAcct('all',this)">All</button>
+        <button class="asset-acct-btn active" id="aas-merrill" onclick="toggleAssetAcct('merrill',this)">Merrill CMA</button>
+        <button class="asset-acct-btn active" id="aas-vanguard401" onclick="toggleAssetAcct('vanguard401',this)">401(k)</button>
+        <button class="asset-acct-btn active" id="aas-vanguard" onclick="toggleAssetAcct('vanguard',this)">Roth IRA</button>
+        <button class="asset-acct-btn active" id="aas-alight" onclick="toggleAssetAcct('alight',this)">HSA</button>
       </div>
+      <div style="font-size:0.72rem;color:var(--gold-light);font-family:'DM Mono',monospace;margin-bottom:8px;text-align:center;" id="asset-class-total"></div>
       <div class="asset-chart-wrap"><canvas id="assetPieChart"></canvas></div>
       <div class="asset-bars" id="asset-bars"></div>
     </div>
@@ -1458,7 +1460,7 @@ function saveHoldings() { localStorage.setItem('wd_holdings', JSON.stringify(hol
 
 // Asset class breakdown per account { cash, fixedIncome, equities, mutualFunds, other }
 let assetClassData = JSON.parse(localStorage.getItem('wd_assetclass') || 'null') || {
-  merrill: { cash:0, fixedIncome:0, equities:0, mutualFunds:0, other:0 },
+  merrill: { cash:209423.00, fixedIncome:1674166.97, equities:4324046.30, mutualFunds:492243.85, other:0 },
   vanguard401: { cash:0, fixedIncome:0, equities:0, mutualFunds:0, other:0 },
   vanguard:    { cash:0, fixedIncome:0, equities:0, mutualFunds:0, other:0 },
   alight:      { cash:0, fixedIncome:0, equities:0, mutualFunds:0, other:0 },
@@ -1477,7 +1479,7 @@ function getConsolidatedAssetClasses() {
 function getFlatHoldings() {
   const map = {};
   Object.values(holdingsData).forEach(arr => arr.forEach(h => {
-    if (!h.currentValue || h.currentValue<=0) return;
+    if (!h.currentValue || h.currentValue<=0 || h.type==='Cash') return; // skip cash from allocation
     const key = h.ticker;
     if (!map[key]) map[key] = { ticker:key, name:h.name, value:0, cost:0 };
     map[key].value += h.currentValue;
@@ -1636,17 +1638,52 @@ const assetClassConfig = [
   { key:'other',       label:'Other',         color:'#f87171' },
 ];
 
-function switchAssetAcct(id, btn) {
-  activeAssetAcct = id;
-  document.querySelectorAll('#asset-acct-switcher .asset-acct-btn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
+// Multi-select asset account filter
+let selectedAssetAccts = new Set(['merrill','vanguard401','vanguard','alight']);
+
+function toggleAssetAcct(id, btn) {
+  if (id === 'all') {
+    // All button: select all or deselect all
+    const allSelected = selectedAssetAccts.size === 4;
+    if (allSelected) {
+      selectedAssetAccts.clear();
+      document.querySelectorAll('#asset-acct-switcher .asset-acct-btn:not(#aas-all)').forEach(b=>b.classList.remove('active'));
+      btn.classList.add('active'); // keep All highlighted when nothing selected
+    } else {
+      selectedAssetAccts = new Set(['merrill','vanguard401','vanguard','alight']);
+      document.querySelectorAll('#asset-acct-switcher .asset-acct-btn').forEach(b=>b.classList.add('active'));
+    }
+  } else {
+    if (selectedAssetAccts.has(id)) {
+      selectedAssetAccts.delete(id);
+      btn.classList.remove('active');
+    } else {
+      selectedAssetAccts.add(id);
+      btn.classList.add('active');
+    }
+    // Update All button state
+    const allBtn = document.getElementById('aas-all');
+    if (allBtn) allBtn.classList.toggle('active', selectedAssetAccts.size === 4);
+  }
   renderAssetClasses();
 }
 
+function getSelectedAssetClasses() {
+  if (selectedAssetAccts.size === 0) return { cash:0, fixedIncome:0, equities:0, mutualFunds:0, other:0 };
+  const totals = { cash:0, fixedIncome:0, equities:0, mutualFunds:0, other:0 };
+  selectedAssetAccts.forEach(acctId => {
+    const d = assetClassData[acctId] || {};
+    Object.keys(totals).forEach(k => totals[k] += (d[k]||0));
+  });
+  return totals;
+}
+
 function renderAssetClasses() {
-  const data = activeAssetAcct === 'all'
-    ? getConsolidatedAssetClasses()
-    : (assetClassData[activeAssetAcct] || { cash:0, fixedIncome:0, equities:0, mutualFunds:0, other:0 });
+  const data = getSelectedAssetClasses();
+  const selectedCount = selectedAssetAccts.size;
+  const selLabel = selectedCount === 4 ? 'All Accounts' :
+    selectedCount === 0 ? 'No accounts selected' :
+    [...selectedAssetAccts].map(id => ({merrill:'Merrill',vanguard401:'401(k)',vanguard:'Roth IRA',alight:'HSA'}[id]||id)).join(' + ');
 
   const total = Object.values(data).reduce((s,v)=>s+v,0);
   const labels = assetClassConfig.map(c=>c.label);
@@ -1663,12 +1700,18 @@ function renderAssetClasses() {
       responsive: true, maintainAspectRatio: false, cutout: '62%',
       plugins: {
         legend: { position: 'right', labels: { color:'#9ca3af', font:{ family:'DM Sans', size:11 }, boxWidth:12, padding:10 } },
-        tooltip: { callbacks: { label: i => ' $' + i.raw.toLocaleString(undefined,{minimumFractionDigits:2}) + ' (' + (total>0?(i.raw/total*100).toFixed(1):0) + '%)' } }
+        tooltip: { callbacks: { label: i => ' $' + i.raw.toLocaleString(undefined,{minimumFractionDigits:2}) + ' (' + (total>0?(i.raw/total*100).toFixed(1):0) + '%)' } },
+        title: { display: selectedCount>0 && selectedCount<4, text: selLabel, color:'#9ca3af', font:{size:10}, padding:{bottom:4} }
       }
     }
   });
 
   // Bar breakdown
+  // Show total for selected accounts
+  const totalEl = document.getElementById('asset-class-total');
+  if (totalEl) {
+    totalEl.textContent = 'Total: ' + fmt(total) + (selectedCount < 4 ? ' (' + selLabel + ')' : '');
+  }
   const barsEl = document.getElementById('asset-bars');
   barsEl.innerHTML = assetClassConfig.map(c => {
     const val = data[c.key]||0;
