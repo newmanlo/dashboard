@@ -968,6 +968,59 @@
   </div>
 </div>
 
+<!-- ESPP Calculator Tab -->
+<div class="tab-view" id="tab-espp">
+  <div style="padding:4px 20px 16px;">
+    <h2 style="font-family:'Playfair Display',serif;font-size:1.1rem;color:var(--text);">ESPP Calculator</h2>
+    <p style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;">Medline Industries Employee Stock Purchase Plan</p>
+  </div>
+
+  <div class="plan-card" style="margin-top:0;">
+    <h3>Plan Parameters</h3>
+    <p>Enter your details to model both immediate-sale and hold strategies</p>
+    <div class="monte-inputs">
+      <div class="input-group"><label>Annual Salary ($)</label>
+        <input type="number" id="espp-salary" placeholder="e.g. 150000" oninput="calcESPP()">
+      </div>
+      <div class="input-group"><label>Contribution (%)</label>
+        <input type="number" id="espp-contrib" value="15" min="1" max="15" oninput="calcESPP()">
+      </div>
+      <div class="input-group"><label>Discount (%)</label>
+        <input type="number" id="espp-discount" value="15" oninput="calcESPP()">
+      </div>
+      <div class="input-group"><label>Stock Price ($)</label>
+        <input type="number" id="espp-price" placeholder="Medline IPO price" step="0.01" oninput="calcESPP()">
+      </div>
+      <div class="input-group"><label>Offering Periods/yr</label>
+        <input type="number" id="espp-periods" value="2" min="1" max="4" oninput="calcESPP()">
+      </div>
+      <div class="input-group"><label>Hold Years (Scenario B)</label>
+        <input type="number" id="espp-hold" value="2" min="1" max="10" oninput="calcESPP()">
+      </div>
+      <div class="input-group"><label>Expected Growth (%/yr)</label>
+        <input type="number" id="espp-growth" value="8" step="0.5" oninput="calcESPP()">
+      </div>
+      <div class="input-group"><label>Federal Tax Bracket (%)</label>
+        <input type="number" id="espp-fed" value="32" oninput="calcESPP()">
+      </div>
+    </div>
+    <div class="input-group" style="margin-bottom:14px;">
+      <label>Company Bonus ($)</label>
+      <input type="number" id="espp-bonus" value="3000" oninput="calcESPP()" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 12px;color:var(--text);font-family:'DM Mono',monospace;font-size:0.85rem;outline:none;">
+    </div>
+    <div style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.2);border-radius:10px;padding:10px 14px;font-size:0.75rem;color:var(--text-muted);margin-bottom:14px;">
+      Illinois state tax of 4.95% applied automatically
+    </div>
+  </div>
+
+  <div class="plan-card" style="margin-bottom:80px;">
+    <h3>Analysis</h3>
+    <div id="espp-results">
+      <div style="text-align:center;padding:20px;color:var(--text-muted);font-size:0.82rem;">Enter your salary and stock price above to see projections</div>
+    </div>
+  </div>
+</div>
+
 <!-- Wellness Tab -->
 <div class="tab-view" id="tab-wellness">
 
@@ -1369,6 +1422,10 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
     Wellness
   </button>
+  <button class="bnav-btn" onclick="showTab('espp',this)">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+    ESPP
+  </button>
 </div>
 
 <!-- Edit Modal - updated -->
@@ -1482,7 +1539,8 @@ function getConsolidatedAssetClasses() {
 function getFlatHoldings() {
   const map = {};
   Object.values(holdingsData).forEach(arr => arr.forEach(h => {
-    if (!h.currentValue || h.currentValue<=0 || h.type==='Cash') return; // skip cash from allocation
+    if (!h.currentValue || h.currentValue<=0) return;
+    if (h.type==='Cash' || h.ticker==='--' || !h.ticker) return; // skip cash and untickered bonds
     const key = h.ticker;
     if (!map[key]) map[key] = { ticker:key, name:h.name, value:0, cost:0 };
     map[key].value += h.currentValue;
@@ -2295,6 +2353,7 @@ function showTab(name, btn) {
   btn.classList.add('active');
   if (name === 'planning' && !planningInited) { initPlanningTab(); planningInited = true; }
   if (name === 'peace' && !peaceInited) { initPeaceTab(); peaceInited = true; }
+  if (name === 'espp') { initESPP(); }
   if (name === 'wellness' && !wellnessInited) { initWellnessTab(); wellnessInited = true; }
   if (name === 'trends' && !trendsInited) { initTrendTab(); trendsInited = true; }
 }
@@ -2302,79 +2361,67 @@ function showTab(name, btn) {
 // ── LIVE STOCK PRICE UPDATER ──────────────────────────────────────
 // Uses Yahoo Finance API via CORS proxy — no API key required
 
-// Stock price fetching — uses multiple free CORS-friendly APIs
+// Stock price fetching — tries multiple APIs with fallback
 async function fetchPricesForTickers(tickers) {
   const results = {};
 
-  // Method 1: Frankfurter-style — use exchangerate for ETFs/funds via mapped approach
-  // Method 1: Try polygon.io free tier (no key for delayed data)
-  try {
-    const promises = tickers.map(async t => {
-      try {
-        const res = await fetch('https://api.polygon.io/v2/aggs/ticker/' + t + '/prev?adjusted=true&apiKey=demo');
-        if (!res.ok) return null;
-        const d = await res.json();
-        const r = d?.results?.[0];
-        if (r) return { symbol:t, price: r.c, changePct: ((r.c-r.o)/r.o*100) };
-        return null;
-      } catch(e) { return null; }
-    });
-    const quotes = (await Promise.all(promises)).filter(q => q && q.price > 0);
-    if (quotes.length === tickers.length) {
-      quotes.forEach(q => { results[q.symbol] = { price:q.price, changePct:q.changePct }; });
-      return { results, source:'Polygon.io' };
-    }
-    // Partial results — keep what we got
-    quotes.forEach(q => { results[q.symbol] = { price:q.price, changePct:q.changePct }; });
-  } catch(e) {}
+  // Helper to try a single URL fetch
+  async function tryFetch(url, parser) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
+      if (!res.ok) return null;
+      return await parser(res);
+    } catch(e) { return null; }
+  }
 
-  // Method 2: Try Finnhub free (no key needed for US stocks)
-  try {
-    const missing = tickers.filter(t => !results[t]);
-    const promises = missing.map(async t => {
-      try {
-        const res = await fetch('https://finnhub.io/api/v1/quote?symbol=' + t + '&token=demo');
-        if (!res.ok) return null;
-        const d = await res.json();
-        if (d?.c > 0) return { symbol:t, price:d.c, changePct:d.dp||0 };
-        return null;
-      } catch(e) { return null; }
+  // Method 1: Yahoo Finance v8 chart API (one ticker at a time, via allorigins)
+  for (const t of tickers) {
+    if (results[t]) continue;
+    const yhUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(
+      'https://query2.finance.yahoo.com/v8/finance/chart/' + t + '?interval=1d&range=5d'
+    );
+    const price = await tryFetch(yhUrl, async r => {
+      const d = await r.json();
+      const meta = d?.chart?.result?.[0]?.meta;
+      return meta?.regularMarketPrice > 0 ? meta.regularMarketPrice : null;
     });
-    const quotes = (await Promise.all(promises)).filter(q => q && q.price > 0);
-    quotes.forEach(q => { results[q.symbol] = { price:q.price, changePct:q.changePct }; });
-  } catch(e) {}
+    if (price) { results[t] = { price, changePct: 0 }; }
+  }
+  if (Object.keys(results).length === tickers.length) return { results, source: 'Yahoo Finance' };
 
-  // Method 3: Try marketdata.app free tier
-  try {
-    const missing = tickers.filter(t => !results[t]);
-    const promises = missing.map(async t => {
-      try {
-        const res = await fetch('https://api.marketdata.app/v1/stocks/quotes/' + t + '/');
-        if (!res.ok) return null;
-        const d = await res.json();
-        const price = d?.last?.[0] || d?.close?.[0];
-        if (price > 0) return { symbol:t, price, changePct: d?.changepct?.[0] || 0 };
-        return null;
-      } catch(e) { return null; }
+  // Method 2: Yahoo Finance v7 quote via corsproxy
+  const missing1 = tickers.filter(t => !results[t]);
+  if (missing1.length > 0) {
+    const yhUrl2 = 'https://corsproxy.io/?' + encodeURIComponent(
+      'https://query1.finance.yahoo.com/v7/finance/quote?symbols=' + missing1.join(',')
+    );
+    const quotes = await tryFetch(yhUrl2, async r => {
+      const d = await r.json();
+      return d?.quoteResponse?.result || null;
     });
-    const quotes = (await Promise.all(promises)).filter(q => q && q.price > 0);
-    quotes.forEach(q => { results[q.symbol] = { price:q.price, changePct:q.changePct }; });
-  } catch(e) {}
+    if (quotes) quotes.forEach(q => {
+      if (q.regularMarketPrice > 0) results[q.symbol] = { price: q.regularMarketPrice, changePct: q.regularMarketChangePercent || 0 };
+    });
+  }
+  if (Object.keys(results).length === tickers.length) return { results, source: 'Yahoo Finance' };
 
-  // Method 4: Yahoo Finance via allorigins (last resort)
-  try {
-    const missing = tickers.filter(t => !results[t]);
-    if (missing.length > 0) {
-      const url = 'https://query2.finance.yahoo.com/v8/finance/chart/' + missing[0] + '?interval=1d&range=1d';
-      const res = await fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(url));
-      if (res.ok) {
-        const d = await res.json();
-        const price = d?.chart?.result?.[0]?.meta?.regularMarketPrice;
-        const sym = missing[0];
-        if (price > 0) results[sym] = { price, changePct: 0 };
+  // Method 3: Stooq (free, CORS-friendly, no key)
+  const missing2 = tickers.filter(t => !results[t]);
+  for (const t of missing2) {
+    const stooqUrl = 'https://stooq.com/q/l/?s=' + t.toLowerCase() + '.us&f=sd2t2ohlcv&h&e=csv';
+    const price = await tryFetch(
+      'https://api.allorigins.win/raw?url=' + encodeURIComponent(stooqUrl),
+      async r => {
+        const text = await r.text();
+        const lines = text.trim().split('\n');
+        if (lines.length < 2) return null;
+        const cols = lines[1].split(',');
+        const p = parseFloat(cols[6]); // close price
+        return p > 0 ? p : null;
       }
-    }
-  } catch(e) {}
+    );
+    if (price) results[t] = { price, changePct: 0 };
+  }
 
   return { results, source: Object.keys(results).length ? 'Market Data' : null };
 }
@@ -2460,6 +2507,152 @@ async function refreshStockPrices() {
     }
     if (btn) { btn.textContent = '↻ Live Prices'; btn.disabled = false; }
   }
+}
+
+
+// ── ESPP CALCULATOR ──────────────────────────────────────────────
+// ── ESPP CALCULATOR ──────────────────────────────────────────────
+
+function initESPP() {
+  calcESPP();
+}
+
+function calcESPP() {
+  const salary       = +(document.getElementById('espp-salary')?.value || 0);
+  const contribPct   = +(document.getElementById('espp-contrib')?.value || 15) / 100;
+  const discount     = +(document.getElementById('espp-discount')?.value || 15) / 100;
+  const stockPrice   = +(document.getElementById('espp-price')?.value || 0);
+  const periods      = +(document.getElementById('espp-periods')?.value || 2); // offering periods per year
+  const holdYears    = +(document.getElementById('espp-hold')?.value || 0);
+  const growthRate   = +(document.getElementById('espp-growth')?.value || 8) / 100;
+  const fedRate      = +(document.getElementById('espp-fed')?.value || 32) / 100;
+  const stateRate    = 0.0495; // Illinois
+  const bonus        = +(document.getElementById('espp-bonus')?.value || 3000);
+  const bonusShares  = stockPrice > 0 ? bonus / (stockPrice * (1 - discount)) : 0;
+
+  if (!salary || !stockPrice) {
+    const el = document.getElementById('espp-results');
+    if (el) el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:0.82rem;">Enter your salary and stock price to see projections</div>';
+    return;
+  }
+
+  const annualContrib  = salary * contribPct;
+  const perPeriod      = annualContrib / periods;
+  const purchasePrice  = stockPrice * (1 - discount);
+  const sharesPerPeriod= perPeriod / purchasePrice;
+  const annualShares   = sharesPerPeriod * periods;
+  const bonusSharesAmt = bonus / purchasePrice;
+
+  // Scenario A: Sell immediately (disqualifying disposition)
+  const immediateProceedsPerPeriod = sharesPerPeriod * stockPrice;
+  const immediateGainPerPeriod     = immediateProceedsPerPeriod - perPeriod;
+  const immediateTaxPerPeriod      = immediateGainPerPeriod * (fedRate + stateRate);
+  const immediateNetPerPeriod      = immediateProceedsPerPeriod - immediateTaxPerPeriod;
+  const immediateAnnualNet         = (immediateProceedsPerPeriod - immediateTaxPerPeriod) * periods - annualContrib;
+
+  // Cleaner calc
+  const grossProceedsAnnual  = annualShares * stockPrice;
+  const grossGainAnnual      = grossProceedsAnnual - annualContrib;
+  const taxImmediate         = grossGainAnnual * (fedRate + stateRate); // ordinary income
+  const netImmediateAnnual   = grossGainAnnual - taxImmediate;
+  const effectiveReturnImm   = netImmediateAnnual / annualContrib * 100;
+
+  // Scenario B: Hold for qualifying disposition (>1yr from purchase, >2yr from grant)
+  const holdPrice      = stockPrice * Math.pow(1 + growthRate, Math.max(holdYears, 1));
+  const holdProceeds   = annualShares * holdPrice;
+  const ordinaryPortion= annualShares * discount * stockPrice; // discount taxed as ordinary
+  const capitalGain    = holdProceeds - annualContrib - ordinaryPortion;
+  const taxHold        = ordinaryPortion * (fedRate + stateRate) + capitalGain * (0.20 + stateRate);
+  const netHoldAnnual  = holdProceeds - annualContrib - taxHold;
+  const effectiveReturnHold = netHoldAnnual / annualContrib * 100;
+
+  // Bonus $3000 scenarios
+  const bonusImmediateProceeds = bonusSharesAmt * stockPrice;
+  const bonusImmediateGain     = bonusImmediateProceeds - bonus;
+  const bonusImmediateNet      = bonusImmediateGain - bonusImmediateGain * (fedRate + stateRate);
+
+  // Break-even: how far can stock fall before you lose money (immediate sale)
+  const breakEvenPrice = purchasePrice; // you bought at discount — stock must fall below purchase price
+  const breakEvenDrop  = (stockPrice - breakEvenPrice) / stockPrice * 100;
+
+  // 5-year projection if you hold and reinvest
+  const fiveYearValue = annualShares * 5 * stockPrice * Math.pow(1+growthRate, 5);
+
+  const el = document.getElementById('espp-results');
+  if (!el) return;
+
+  el.innerHTML = `
+    <!-- Key metrics strip -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
+      <div style="background:var(--surface2);border-radius:12px;padding:12px;text-align:center;">
+        <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Annual Contribution</div>
+        <div style="font-family:'DM Mono',monospace;font-size:1rem;color:var(--gold-light);margin-top:4px;">${fmt(annualContrib)}</div>
+        <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">${(contribPct*100).toFixed(0)}% of salary</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:12px;padding:12px;text-align:center;">
+        <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Purchase Price</div>
+        <div style="font-family:'DM Mono',monospace;font-size:1rem;color:var(--green);margin-top:4px;">${fmt(purchasePrice)}/sh</div>
+        <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">vs ${fmt(stockPrice)} market</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:12px;padding:12px;text-align:center;">
+        <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Annual Shares</div>
+        <div style="font-family:'DM Mono',monospace;font-size:1rem;color:var(--text);margin-top:4px;">${annualShares.toFixed(2)} shares</div>
+        <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">${sharesPerPeriod.toFixed(2)}/period × ${periods}</div>
+      </div>
+      <div style="background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.2);border-radius:12px;padding:12px;text-align:center;">
+        <div style="font-size:0.65rem;color:var(--green);text-transform:uppercase;letter-spacing:0.05em;">Break-even Protection</div>
+        <div style="font-family:'DM Mono',monospace;font-size:1rem;color:var(--green);margin-top:4px;">-${breakEvenDrop.toFixed(1)}%</div>
+        <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">stock must drop this far to lose</div>
+      </div>
+    </div>
+
+    <!-- Scenario A: Sell Immediately -->
+    <div style="background:var(--surface2);border-radius:14px;padding:16px;margin-bottom:12px;border-left:3px solid var(--green);">
+      <div style="font-size:0.85rem;font-weight:600;color:var(--text);margin-bottom:10px;">Strategy A — Sell Immediately</div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:10px;">Lowest risk. Guaranteed return regardless of stock performance.</div>
+      ${[
+        ['Annual gross gain',    fmt(grossGainAnnual)],
+        ['Federal + IL tax ('+(((fedRate+stateRate)*100).toFixed(1))+'%)', '-'+fmt(taxImmediate)],
+        ['Annual net profit',    fmt(netImmediateAnnual)],
+        ['Effective return',     effectiveReturnImm.toFixed(1)+'% on contribution'],
+      ].map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:0.78rem;"><span style="color:var(--text-muted)">${k}</span><span style="font-family:'DM Mono',monospace;color:var(--text)">${v}</span></div>`).join('')}
+    </div>
+
+    <!-- Scenario B: Hold -->
+    <div style="background:var(--surface2);border-radius:14px;padding:16px;margin-bottom:12px;border-left:3px solid var(--gold-light);">
+      <div style="font-size:0.85rem;font-weight:600;color:var(--text);margin-bottom:10px;">Strategy B — Hold ${holdYears} Year${holdYears!==1?'s':''} (Qualifying)</div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:10px;">Higher upside. Discount taxed as ordinary income; gains at long-term capital gains rate.</div>
+      ${[
+        ['Price after '+holdYears+'yr at '+((growthRate*100).toFixed(0))+'% growth', fmt(holdPrice)+'/sh'],
+        ['Proceeds',             fmt(holdProceeds)],
+        ['Ordinary income portion', fmt(ordinaryPortion)],
+        ['Long-term capital gain',  fmt(capitalGain)],
+        ['Total tax',            '-'+fmt(taxHold)],
+        ['Net profit',           fmt(netHoldAnnual)],
+        ['Effective return',     effectiveReturnHold.toFixed(1)+'% on contribution'],
+      ].map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:0.78rem;"><span style="color:var(--text-muted)">${k}</span><span style="font-family:'DM Mono',monospace;color:var(--text)">${v}</span></div>`).join('')}
+    </div>
+
+    <!-- $3000 Bonus -->
+    <div style="background:var(--surface2);border-radius:14px;padding:16px;margin-bottom:12px;border-left:3px solid var(--purple);">
+      <div style="font-size:0.85rem;font-weight:600;color:var(--text);margin-bottom:10px;">$3,000 Company Bonus</div>
+      ${[
+        ['Shares purchased at discount', bonusSharesAmt.toFixed(3)+' shares @ '+fmt(purchasePrice)],
+        ['Immediate market value',       fmt(bonusImmediateProceeds)],
+        ['Immediate gain (before tax)',  fmt(bonusImmediateGain)],
+        ['Net after tax (immediate)',    fmt(bonus + bonusImmediateNet)],
+      ].map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:0.78rem;"><span style="color:var(--text-muted)">${k}</span><span style="font-family:'DM Mono',monospace;color:var(--text)">${v}</span></div>`).join('')}
+    </div>
+
+    <!-- Advisor tip -->
+    <div style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.2);border-radius:12px;padding:14px;font-size:0.78rem;color:var(--text-dim);line-height:1.7;">
+      <strong style="color:var(--gold-light);">Key questions for your advisor:</strong><br>
+      1. Qualifying vs. disqualifying disposition timeline for Medline's ESPP<br>
+      2. Concentration risk given your income is also from Medline<br>
+      3. Immediate sale strategy to lock in the guaranteed 15% discount return<br>
+      4. Whether the ${(contribPct*100).toFixed(0)}% contribution affects your 401k contributions<br>
+      <div style="margin-top:8px;font-size:0.7rem;color:var(--text-muted);">This is illustrative only — consult your financial advisor and tax professional before participating.</div>
+    </div>`;
 }
 
 
@@ -2887,7 +3080,299 @@ function initWellnessTab() {
 
 
 // ── TREND ANALYSIS TAB ────────────────────────────────────────────
+// ── ESPP CALCULATOR ──────────────────────────────────────────────
+// ── ESPP CALCULATOR ──────────────────────────────────────────────
+
+function initESPP() {
+  calcESPP();
+}
+
+function calcESPP() {
+  const salary       = +(document.getElementById('espp-salary')?.value || 0);
+  const contribPct   = +(document.getElementById('espp-contrib')?.value || 15) / 100;
+  const discount     = +(document.getElementById('espp-discount')?.value || 15) / 100;
+  const stockPrice   = +(document.getElementById('espp-price')?.value || 0);
+  const periods      = +(document.getElementById('espp-periods')?.value || 2); // offering periods per year
+  const holdYears    = +(document.getElementById('espp-hold')?.value || 0);
+  const growthRate   = +(document.getElementById('espp-growth')?.value || 8) / 100;
+  const fedRate      = +(document.getElementById('espp-fed')?.value || 32) / 100;
+  const stateRate    = 0.0495; // Illinois
+  const bonus        = +(document.getElementById('espp-bonus')?.value || 3000);
+  const bonusShares  = stockPrice > 0 ? bonus / (stockPrice * (1 - discount)) : 0;
+
+  if (!salary || !stockPrice) {
+    const el = document.getElementById('espp-results');
+    if (el) el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:0.82rem;">Enter your salary and stock price to see projections</div>';
+    return;
+  }
+
+  const annualContrib  = salary * contribPct;
+  const perPeriod      = annualContrib / periods;
+  const purchasePrice  = stockPrice * (1 - discount);
+  const sharesPerPeriod= perPeriod / purchasePrice;
+  const annualShares   = sharesPerPeriod * periods;
+  const bonusSharesAmt = bonus / purchasePrice;
+
+  // Scenario A: Sell immediately (disqualifying disposition)
+  const immediateProceedsPerPeriod = sharesPerPeriod * stockPrice;
+  const immediateGainPerPeriod     = immediateProceedsPerPeriod - perPeriod;
+  const immediateTaxPerPeriod      = immediateGainPerPeriod * (fedRate + stateRate);
+  const immediateNetPerPeriod      = immediateProceedsPerPeriod - immediateTaxPerPeriod;
+  const immediateAnnualNet         = (immediateProceedsPerPeriod - immediateTaxPerPeriod) * periods - annualContrib;
+
+  // Cleaner calc
+  const grossProceedsAnnual  = annualShares * stockPrice;
+  const grossGainAnnual      = grossProceedsAnnual - annualContrib;
+  const taxImmediate         = grossGainAnnual * (fedRate + stateRate); // ordinary income
+  const netImmediateAnnual   = grossGainAnnual - taxImmediate;
+  const effectiveReturnImm   = netImmediateAnnual / annualContrib * 100;
+
+  // Scenario B: Hold for qualifying disposition (>1yr from purchase, >2yr from grant)
+  const holdPrice      = stockPrice * Math.pow(1 + growthRate, Math.max(holdYears, 1));
+  const holdProceeds   = annualShares * holdPrice;
+  const ordinaryPortion= annualShares * discount * stockPrice; // discount taxed as ordinary
+  const capitalGain    = holdProceeds - annualContrib - ordinaryPortion;
+  const taxHold        = ordinaryPortion * (fedRate + stateRate) + capitalGain * (0.20 + stateRate);
+  const netHoldAnnual  = holdProceeds - annualContrib - taxHold;
+  const effectiveReturnHold = netHoldAnnual / annualContrib * 100;
+
+  // Bonus $3000 scenarios
+  const bonusImmediateProceeds = bonusSharesAmt * stockPrice;
+  const bonusImmediateGain     = bonusImmediateProceeds - bonus;
+  const bonusImmediateNet      = bonusImmediateGain - bonusImmediateGain * (fedRate + stateRate);
+
+  // Break-even: how far can stock fall before you lose money (immediate sale)
+  const breakEvenPrice = purchasePrice; // you bought at discount — stock must fall below purchase price
+  const breakEvenDrop  = (stockPrice - breakEvenPrice) / stockPrice * 100;
+
+  // 5-year projection if you hold and reinvest
+  const fiveYearValue = annualShares * 5 * stockPrice * Math.pow(1+growthRate, 5);
+
+  const el = document.getElementById('espp-results');
+  if (!el) return;
+
+  el.innerHTML = `
+    <!-- Key metrics strip -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
+      <div style="background:var(--surface2);border-radius:12px;padding:12px;text-align:center;">
+        <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Annual Contribution</div>
+        <div style="font-family:'DM Mono',monospace;font-size:1rem;color:var(--gold-light);margin-top:4px;">${fmt(annualContrib)}</div>
+        <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">${(contribPct*100).toFixed(0)}% of salary</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:12px;padding:12px;text-align:center;">
+        <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Purchase Price</div>
+        <div style="font-family:'DM Mono',monospace;font-size:1rem;color:var(--green);margin-top:4px;">${fmt(purchasePrice)}/sh</div>
+        <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">vs ${fmt(stockPrice)} market</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:12px;padding:12px;text-align:center;">
+        <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Annual Shares</div>
+        <div style="font-family:'DM Mono',monospace;font-size:1rem;color:var(--text);margin-top:4px;">${annualShares.toFixed(2)} shares</div>
+        <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">${sharesPerPeriod.toFixed(2)}/period × ${periods}</div>
+      </div>
+      <div style="background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.2);border-radius:12px;padding:12px;text-align:center;">
+        <div style="font-size:0.65rem;color:var(--green);text-transform:uppercase;letter-spacing:0.05em;">Break-even Protection</div>
+        <div style="font-family:'DM Mono',monospace;font-size:1rem;color:var(--green);margin-top:4px;">-${breakEvenDrop.toFixed(1)}%</div>
+        <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">stock must drop this far to lose</div>
+      </div>
+    </div>
+
+    <!-- Scenario A: Sell Immediately -->
+    <div style="background:var(--surface2);border-radius:14px;padding:16px;margin-bottom:12px;border-left:3px solid var(--green);">
+      <div style="font-size:0.85rem;font-weight:600;color:var(--text);margin-bottom:10px;">Strategy A — Sell Immediately</div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:10px;">Lowest risk. Guaranteed return regardless of stock performance.</div>
+      ${[
+        ['Annual gross gain',    fmt(grossGainAnnual)],
+        ['Federal + IL tax ('+(((fedRate+stateRate)*100).toFixed(1))+'%)', '-'+fmt(taxImmediate)],
+        ['Annual net profit',    fmt(netImmediateAnnual)],
+        ['Effective return',     effectiveReturnImm.toFixed(1)+'% on contribution'],
+      ].map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:0.78rem;"><span style="color:var(--text-muted)">${k}</span><span style="font-family:'DM Mono',monospace;color:var(--text)">${v}</span></div>`).join('')}
+    </div>
+
+    <!-- Scenario B: Hold -->
+    <div style="background:var(--surface2);border-radius:14px;padding:16px;margin-bottom:12px;border-left:3px solid var(--gold-light);">
+      <div style="font-size:0.85rem;font-weight:600;color:var(--text);margin-bottom:10px;">Strategy B — Hold ${holdYears} Year${holdYears!==1?'s':''} (Qualifying)</div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:10px;">Higher upside. Discount taxed as ordinary income; gains at long-term capital gains rate.</div>
+      ${[
+        ['Price after '+holdYears+'yr at '+((growthRate*100).toFixed(0))+'% growth', fmt(holdPrice)+'/sh'],
+        ['Proceeds',             fmt(holdProceeds)],
+        ['Ordinary income portion', fmt(ordinaryPortion)],
+        ['Long-term capital gain',  fmt(capitalGain)],
+        ['Total tax',            '-'+fmt(taxHold)],
+        ['Net profit',           fmt(netHoldAnnual)],
+        ['Effective return',     effectiveReturnHold.toFixed(1)+'% on contribution'],
+      ].map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:0.78rem;"><span style="color:var(--text-muted)">${k}</span><span style="font-family:'DM Mono',monospace;color:var(--text)">${v}</span></div>`).join('')}
+    </div>
+
+    <!-- $3000 Bonus -->
+    <div style="background:var(--surface2);border-radius:14px;padding:16px;margin-bottom:12px;border-left:3px solid var(--purple);">
+      <div style="font-size:0.85rem;font-weight:600;color:var(--text);margin-bottom:10px;">$3,000 Company Bonus</div>
+      ${[
+        ['Shares purchased at discount', bonusSharesAmt.toFixed(3)+' shares @ '+fmt(purchasePrice)],
+        ['Immediate market value',       fmt(bonusImmediateProceeds)],
+        ['Immediate gain (before tax)',  fmt(bonusImmediateGain)],
+        ['Net after tax (immediate)',    fmt(bonus + bonusImmediateNet)],
+      ].map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:0.78rem;"><span style="color:var(--text-muted)">${k}</span><span style="font-family:'DM Mono',monospace;color:var(--text)">${v}</span></div>`).join('')}
+    </div>
+
+    <!-- Advisor tip -->
+    <div style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.2);border-radius:12px;padding:14px;font-size:0.78rem;color:var(--text-dim);line-height:1.7;">
+      <strong style="color:var(--gold-light);">Key questions for your advisor:</strong><br>
+      1. Qualifying vs. disqualifying disposition timeline for Medline's ESPP<br>
+      2. Concentration risk given your income is also from Medline<br>
+      3. Immediate sale strategy to lock in the guaranteed 15% discount return<br>
+      4. Whether the ${(contribPct*100).toFixed(0)}% contribution affects your 401k contributions<br>
+      <div style="margin-top:8px;font-size:0.7rem;color:var(--text-muted);">This is illustrative only — consult your financial advisor and tax professional before participating.</div>
+    </div>`;
+}
+
+
 // ── SAVINGS ANALYZER ────────────────────────────────────────────
+// ── ESPP CALCULATOR ──────────────────────────────────────────────
+// ── ESPP CALCULATOR ──────────────────────────────────────────────
+
+function initESPP() {
+  calcESPP();
+}
+
+function calcESPP() {
+  const salary       = +(document.getElementById('espp-salary')?.value || 0);
+  const contribPct   = +(document.getElementById('espp-contrib')?.value || 15) / 100;
+  const discount     = +(document.getElementById('espp-discount')?.value || 15) / 100;
+  const stockPrice   = +(document.getElementById('espp-price')?.value || 0);
+  const periods      = +(document.getElementById('espp-periods')?.value || 2); // offering periods per year
+  const holdYears    = +(document.getElementById('espp-hold')?.value || 0);
+  const growthRate   = +(document.getElementById('espp-growth')?.value || 8) / 100;
+  const fedRate      = +(document.getElementById('espp-fed')?.value || 32) / 100;
+  const stateRate    = 0.0495; // Illinois
+  const bonus        = +(document.getElementById('espp-bonus')?.value || 3000);
+  const bonusShares  = stockPrice > 0 ? bonus / (stockPrice * (1 - discount)) : 0;
+
+  if (!salary || !stockPrice) {
+    const el = document.getElementById('espp-results');
+    if (el) el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:0.82rem;">Enter your salary and stock price to see projections</div>';
+    return;
+  }
+
+  const annualContrib  = salary * contribPct;
+  const perPeriod      = annualContrib / periods;
+  const purchasePrice  = stockPrice * (1 - discount);
+  const sharesPerPeriod= perPeriod / purchasePrice;
+  const annualShares   = sharesPerPeriod * periods;
+  const bonusSharesAmt = bonus / purchasePrice;
+
+  // Scenario A: Sell immediately (disqualifying disposition)
+  const immediateProceedsPerPeriod = sharesPerPeriod * stockPrice;
+  const immediateGainPerPeriod     = immediateProceedsPerPeriod - perPeriod;
+  const immediateTaxPerPeriod      = immediateGainPerPeriod * (fedRate + stateRate);
+  const immediateNetPerPeriod      = immediateProceedsPerPeriod - immediateTaxPerPeriod;
+  const immediateAnnualNet         = (immediateProceedsPerPeriod - immediateTaxPerPeriod) * periods - annualContrib;
+
+  // Cleaner calc
+  const grossProceedsAnnual  = annualShares * stockPrice;
+  const grossGainAnnual      = grossProceedsAnnual - annualContrib;
+  const taxImmediate         = grossGainAnnual * (fedRate + stateRate); // ordinary income
+  const netImmediateAnnual   = grossGainAnnual - taxImmediate;
+  const effectiveReturnImm   = netImmediateAnnual / annualContrib * 100;
+
+  // Scenario B: Hold for qualifying disposition (>1yr from purchase, >2yr from grant)
+  const holdPrice      = stockPrice * Math.pow(1 + growthRate, Math.max(holdYears, 1));
+  const holdProceeds   = annualShares * holdPrice;
+  const ordinaryPortion= annualShares * discount * stockPrice; // discount taxed as ordinary
+  const capitalGain    = holdProceeds - annualContrib - ordinaryPortion;
+  const taxHold        = ordinaryPortion * (fedRate + stateRate) + capitalGain * (0.20 + stateRate);
+  const netHoldAnnual  = holdProceeds - annualContrib - taxHold;
+  const effectiveReturnHold = netHoldAnnual / annualContrib * 100;
+
+  // Bonus $3000 scenarios
+  const bonusImmediateProceeds = bonusSharesAmt * stockPrice;
+  const bonusImmediateGain     = bonusImmediateProceeds - bonus;
+  const bonusImmediateNet      = bonusImmediateGain - bonusImmediateGain * (fedRate + stateRate);
+
+  // Break-even: how far can stock fall before you lose money (immediate sale)
+  const breakEvenPrice = purchasePrice; // you bought at discount — stock must fall below purchase price
+  const breakEvenDrop  = (stockPrice - breakEvenPrice) / stockPrice * 100;
+
+  // 5-year projection if you hold and reinvest
+  const fiveYearValue = annualShares * 5 * stockPrice * Math.pow(1+growthRate, 5);
+
+  const el = document.getElementById('espp-results');
+  if (!el) return;
+
+  el.innerHTML = `
+    <!-- Key metrics strip -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
+      <div style="background:var(--surface2);border-radius:12px;padding:12px;text-align:center;">
+        <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Annual Contribution</div>
+        <div style="font-family:'DM Mono',monospace;font-size:1rem;color:var(--gold-light);margin-top:4px;">${fmt(annualContrib)}</div>
+        <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">${(contribPct*100).toFixed(0)}% of salary</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:12px;padding:12px;text-align:center;">
+        <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Purchase Price</div>
+        <div style="font-family:'DM Mono',monospace;font-size:1rem;color:var(--green);margin-top:4px;">${fmt(purchasePrice)}/sh</div>
+        <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">vs ${fmt(stockPrice)} market</div>
+      </div>
+      <div style="background:var(--surface2);border-radius:12px;padding:12px;text-align:center;">
+        <div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Annual Shares</div>
+        <div style="font-family:'DM Mono',monospace;font-size:1rem;color:var(--text);margin-top:4px;">${annualShares.toFixed(2)} shares</div>
+        <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">${sharesPerPeriod.toFixed(2)}/period × ${periods}</div>
+      </div>
+      <div style="background:rgba(74,222,128,0.08);border:1px solid rgba(74,222,128,0.2);border-radius:12px;padding:12px;text-align:center;">
+        <div style="font-size:0.65rem;color:var(--green);text-transform:uppercase;letter-spacing:0.05em;">Break-even Protection</div>
+        <div style="font-family:'DM Mono',monospace;font-size:1rem;color:var(--green);margin-top:4px;">-${breakEvenDrop.toFixed(1)}%</div>
+        <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">stock must drop this far to lose</div>
+      </div>
+    </div>
+
+    <!-- Scenario A: Sell Immediately -->
+    <div style="background:var(--surface2);border-radius:14px;padding:16px;margin-bottom:12px;border-left:3px solid var(--green);">
+      <div style="font-size:0.85rem;font-weight:600;color:var(--text);margin-bottom:10px;">Strategy A — Sell Immediately</div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:10px;">Lowest risk. Guaranteed return regardless of stock performance.</div>
+      ${[
+        ['Annual gross gain',    fmt(grossGainAnnual)],
+        ['Federal + IL tax ('+(((fedRate+stateRate)*100).toFixed(1))+'%)', '-'+fmt(taxImmediate)],
+        ['Annual net profit',    fmt(netImmediateAnnual)],
+        ['Effective return',     effectiveReturnImm.toFixed(1)+'% on contribution'],
+      ].map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:0.78rem;"><span style="color:var(--text-muted)">${k}</span><span style="font-family:'DM Mono',monospace;color:var(--text)">${v}</span></div>`).join('')}
+    </div>
+
+    <!-- Scenario B: Hold -->
+    <div style="background:var(--surface2);border-radius:14px;padding:16px;margin-bottom:12px;border-left:3px solid var(--gold-light);">
+      <div style="font-size:0.85rem;font-weight:600;color:var(--text);margin-bottom:10px;">Strategy B — Hold ${holdYears} Year${holdYears!==1?'s':''} (Qualifying)</div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-bottom:10px;">Higher upside. Discount taxed as ordinary income; gains at long-term capital gains rate.</div>
+      ${[
+        ['Price after '+holdYears+'yr at '+((growthRate*100).toFixed(0))+'% growth', fmt(holdPrice)+'/sh'],
+        ['Proceeds',             fmt(holdProceeds)],
+        ['Ordinary income portion', fmt(ordinaryPortion)],
+        ['Long-term capital gain',  fmt(capitalGain)],
+        ['Total tax',            '-'+fmt(taxHold)],
+        ['Net profit',           fmt(netHoldAnnual)],
+        ['Effective return',     effectiveReturnHold.toFixed(1)+'% on contribution'],
+      ].map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:0.78rem;"><span style="color:var(--text-muted)">${k}</span><span style="font-family:'DM Mono',monospace;color:var(--text)">${v}</span></div>`).join('')}
+    </div>
+
+    <!-- $3000 Bonus -->
+    <div style="background:var(--surface2);border-radius:14px;padding:16px;margin-bottom:12px;border-left:3px solid var(--purple);">
+      <div style="font-size:0.85rem;font-weight:600;color:var(--text);margin-bottom:10px;">$3,000 Company Bonus</div>
+      ${[
+        ['Shares purchased at discount', bonusSharesAmt.toFixed(3)+' shares @ '+fmt(purchasePrice)],
+        ['Immediate market value',       fmt(bonusImmediateProceeds)],
+        ['Immediate gain (before tax)',  fmt(bonusImmediateGain)],
+        ['Net after tax (immediate)',    fmt(bonus + bonusImmediateNet)],
+      ].map(([k,v])=>`<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border);font-size:0.78rem;"><span style="color:var(--text-muted)">${k}</span><span style="font-family:'DM Mono',monospace;color:var(--text)">${v}</span></div>`).join('')}
+    </div>
+
+    <!-- Advisor tip -->
+    <div style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.2);border-radius:12px;padding:14px;font-size:0.78rem;color:var(--text-dim);line-height:1.7;">
+      <strong style="color:var(--gold-light);">Key questions for your advisor:</strong><br>
+      1. Qualifying vs. disqualifying disposition timeline for Medline's ESPP<br>
+      2. Concentration risk given your income is also from Medline<br>
+      3. Immediate sale strategy to lock in the guaranteed 15% discount return<br>
+      4. Whether the ${(contribPct*100).toFixed(0)}% contribution affects your 401k contributions<br>
+      <div style="margin-top:8px;font-size:0.7rem;color:var(--text-muted);">This is illustrative only — consult your financial advisor and tax professional before participating.</div>
+    </div>`;
+}
+
+
 // ── SAVINGS ANALYZER ─────────────────────────────────────────────
 
 let savingsData = JSON.parse(localStorage.getItem('wd_savings_data') || 'null') || {
