@@ -1681,6 +1681,7 @@ function renderHoldings() {
         <div class="h-meta">Qty <span>${h.shares.toLocaleString()}</span></div>
         <div class="h-meta">Cost <span>${fmt(h.costBasis,true)}</span></div>
         ${h.shares>0&&h.currentValue>0?`<div class="h-meta">Price <span>${fmt(h.currentValue/h.shares)}</span></div>`:''}
+        ${h.lastPriceDate?`<div class="h-meta">As of <span style="color:var(--text-muted)">${h.lastPriceDate}</span></div>`:''}
       </div>
       <div class="gl-bar-wrap"><div class="gl-bar" style="width:${barW}%;background:${gl>=0?'var(--green)':'var(--red)'}"></div></div>
     </div>`;
@@ -2465,16 +2466,21 @@ async function refreshStockPrices() {
     if (!Object.keys(priceMap).length) throw new Error('No prices returned from any source. Check your internet connection.');
     if (status) status.textContent = 'Got prices from ' + source + '...';
 
-    // Update holdings
+    // Update holdings — calculate change from previous price for accurate day change
     let updated = 0, failed = [];
     Object.values(holdingsData).forEach(arr => arr.forEach(h => {
       if (!PRICEABLE_TYPES.includes(h.type)) return;
       const yahooSym = TICKER_MAP[h.ticker];
       if (!yahooSym || !priceMap[yahooSym]) { if (yahooSym) failed.push(h.ticker); return; }
       const { price, changePct } = priceMap[yahooSym];
-      const oldVal = h.currentValue;
-      h.currentValue = +(h.shares * price).toFixed(2);
-      h.change = +changePct.toFixed(2);
+      const prevPrice = h.shares > 0 ? h.currentValue / h.shares : 0;
+      const newValue  = +(h.shares * price).toFixed(2);
+      // Calculate change % from previous stored price (works for mutual funds too)
+      const calculatedChangePct = prevPrice > 0 ? +((price - prevPrice) / prevPrice * 100).toFixed(2) : (changePct || 0);
+      h.change = Math.abs(calculatedChangePct) > 0.001 ? calculatedChangePct : (changePct || 0);
+      h.currentValue = newValue;
+      h.lastPrice = price;
+      h.lastPriceDate = new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
       updated++;
     }));
 
@@ -2493,11 +2499,13 @@ async function refreshStockPrices() {
     renderAccounts();
 
     const now = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+    const fundNote = ' · Mutual fund NAVs publish after 6pm ET';
     if (status) {
       status.style.color = 'var(--green)';
-      status.textContent = `✓ Updated ${updated} holdings at ${now}` + (failed.length ? ` · Could not price: ${failed.join(', ')}` : '');
+      status.textContent = 'Updated ' + updated + ' holdings at ' + now +
+        (failed.length ? ' · Could not price: ' + failed.join(', ') : '') + fundNote;
     }
-    if (btn) { btn.textContent = `✓ Updated ${now}`; setTimeout(()=>{ btn.textContent='↻ Live Prices'; btn.disabled=false; }, 3000); }
+    if (btn) { btn.textContent = 'Updated ' + now; setTimeout(()=>{ btn.textContent='\u21BB Live Prices'; btn.disabled=false; }, 4000); }
 
   } catch(err) {
     console.error('Price fetch error:', err);
