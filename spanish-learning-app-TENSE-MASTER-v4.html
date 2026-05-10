@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spanish Learning - Family Conversations</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c0f;
+    --surface: #111318;
+    --surface2: #181c23;
+    --border: #1e2430;
+    --gold: #c9a84c;
+    --gold-light: #e8c97a;
+    --gold-dim: rgba(201,168,76,0.15);
+    --text: #e8e6e0;
+    --text-muted: #6b7280;
+    --text-dim: #9ca3af;
+    --green: #4ade80;
+    --red: #f87171;
+    --blue: #60a5fa;
+    --purple: #a78bfa;
+    --radius: 16px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { font-size: 15px; }
+  
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(201,168,76,0.07) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app { position: relative; z-index: 1; max-width: 500px; margin: 0 auto; padding: 0 0 100px; }
+
+  .header {
+    padding: 24px 20px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+  .header-left h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .header-left p { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+  .avatar {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--gold), #8b6914);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem; color: #0a0c0f; font-weight: 700;
+  }
+
+  .nav {
+    display: flex;
+    gap: 4px;
+    padding: 0 20px 20px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav-btn {
+    flex-shrink: 0;
+    padding: 7px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .nav-btn.active {
+    background: var(--gold-dim);
+    border-color: var(--gold);
+    color: var(--gold-light);
+  }
+
+  .progress-card {
+    margin: 0 20px 16px;
+    background: linear-gradient(145deg, #13171f, #0e1219);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .pc-label { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; }
+  .pc-value {
+    font-family: 'Playfair Display', serif;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 6px 0 4px;
+  }
+
+  .section-title {
+    padding: 16px 20px 12px;
+  }
+  .section-title h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .timeline {
+    padding: 20px;
+    background: var(--surface);
+    border-radius: 12px;
+    margin: 0 20px 16px;
+    border: 1px solid var(--border);
+  }
+
+  .timeline-item {
+    margin-bottom: 24px;
+  }
+
+  .timeline-item:last-child { margin-bottom: 0; }
+
+  .timeline-label {
+    font-weight: 600;
+    color: var(--gold-light);
+    font-size: 0.9rem;
+    margin-bottom: 8px;
+  }
+
+  .timeline-visual {
+    height: 40px;
+    background: var(--surface2);
+    border-radius: 8px;
+    position: relative;
+    margin-bottom: 8px;
+    overflow: hidden;
+  }
+
+  .timeline-preterite {
+    background: linear-gradient(90deg, var(--red) 0%, var(--red) 30%, transparent 30%);
+  }
+
+  .timeline-imperfect {
+    background: linear-gradient(90deg, var(--blue), var(--blue));
+  }
+
+  .timeline-description {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  .marker-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin: 16px 20px;
+  }
+
+  .marker-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px;
+  }
+
+  .marker-box.preterite {
+    border-left: 4px solid var(--red);
+  }
+
+  .marker-box.imperfect {
+    border-left: 4px solid var(--blue);
+  }
+
+  .marker-title {
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--gold-light);
+    margin-bottom: 6px;
+  }
+
+  .marker-items {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  .decision-question {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    margin: 0 20px 16px;
+  }
+
+  .decision-text {
+    font-size: 0.9rem;
+    color: var(--text);
+    margin-bottom: 16px;
+    line-height: 1.6;
+  }
+
+  .decision-buttons {
+    display: flex;
+    gap: 10px;
+  }
+
+  .decision-btn {
+    flex: 1;
+    padding: 12px 16px;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface2);
+    color: var(--text);
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 0.85rem;
+    transition: all 0.2s;
+  }
+
+  .decision-btn:hover {
+    border-color: var(--gold);
+    background: var(--surface);
+  }
+
+  .decision-btn.selected-preterite {
+    border-color: var(--red);
+    background: rgba(248,113,113,0.1);
+    color: var(--red);
+  }
+
+  .decision-btn.selected-imperfect {
+    border-color: var(--blue);
+    background: rgba(96,165,250,0.1);
+    color: var(--blue);
+  }
+
+  .decision-btn.correct {
+    border-color: var(--green);
+    background: rgba(74,222,128,0.1);
+    color: var(--green);
+  }
+
+  .feedback {
+    margin-top: 12px;
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    line-height: 1.5;
+  }
+
+  .feedback.correct {
+    background: rgba(74,222,128,0.1);
+    color: var(--green);
+  }
+
+  .feedback.incorrect {
+    background: rgba(248,113,113,0.1);
+    color: var(--red);
+  }
+
+  .story-practice {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    margin: 0 20px 16px;
+  }
+
+  .story-text {
+    font-size: 0.9rem;
+    line-height: 1.8;
+    color: var(--text);
+    margin-bottom: 16px;
+  }
+
+  .blank-select {
+    display: inline-block;
+    padding: 4px 8px;
+    border: 2px solid var(--gold);
+    border-radius: 4px;
+    background: var(--gold-dim);
+    cursor: pointer;
+    font-weight: 500;
+    margin: 0 2px;
+  }
+
+  .blank-select.filled-preterite {
+    border-color: var(--red);
+    background: rgba(248,113,113,0.1);
+    color: var(--red);
+  }
+
+  .blank-select.filled-imperfect {
+    border-color: var(--blue);
+    background: rgba(96,165,250,0.1);
+    color: var(--blue);
+  }
+
+  .story-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-top: 16px;
+  }
+
+  .option-btn {
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface2);
+    color: var(--text-muted);
+    cursor: pointer;
+    font-size: 0.8rem;
+    transition: all 0.2s;
+  }
+
+  .option-btn:hover {
+    border-color: var(--gold);
+  }
+
+  .option-btn.selected {
+    border-color: var(--gold);
+    background: var(--gold-dim);
+    color: var(--gold-light);
+  }
+
+  .btn {
+    padding: 12px 16px;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--gold), var(--gold-light));
+    color: #0a0c0f;
+    width: 100%;
+    margin-top: 12px;
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(201,168,76,0.3);
+  }
+
+  .btn-secondary {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  .modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 100;
+    padding: 20px;
+    overflow-y: auto;
+  }
+
+  .modal.active { display: flex; align-items: flex-end; }
+
+  .modal-content {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 20px 20px 0 0;
+    padding: 24px;
+    width: 100%;
+    max-width: 500px;
+    margin: 0 auto;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+
+  .modal-close {
+    float: right;
+    cursor: pointer;
+    font-size: 1.5rem;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    padding: 0;
+  }
+
+  .modal-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 16px;
+    clear: both;
+  }
+
+  .marker-reference {
+    font-size: 0.8rem;
+    line-height: 1.8;
+    color: var(--text-muted);
+  }
+
+  .marker-reference h3 {
+    color: var(--gold-light);
+    margin-top: 16px;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+  }
+
+  .marker-reference ul {
+    margin-left: 20px;
+  }
+
+  .marker-reference li {
+    margin-bottom: 4px;
+  }
+
+  .stat-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    text-align: center;
+    display: inline-block;
+    min-width: 100px;
+  }
+
+  .stat-value {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--gold-light);
+  }
+
+  .stat-label {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+    text-transform: uppercase;
+  }
+
+  @media (max-width: 480px) {
+    .app { max-width: 100%; }
+    .modal-content { border-radius: 20px; max-height: 90vh; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="header">
+    <div class="header-left">
+      <h1>Spanish</h1>
+      <p>Family Conversations</p>
+    </div>
+    <div class="avatar">🇪🇸</div>
+  </div>
+
+  <div class="nav">
+    <button class="nav-btn active" onclick="setTab('tense-master')">🎯 Tense Master</button>
+    <button class="nav-btn" onclick="setTab('overview')">Overview</button>
+    <button class="nav-btn" onclick="setTab('quiz')">Quiz</button>
+  </div>
+
+  <div class="progress-card">
+    <div class="pc-label">Preterite vs Imperfect Mastery</div>
+    <div class="pc-value" id="tenseMasteryScore">-</div>
+    <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 8px;" id="tenseMasteryStatus">Start learning to track progress</div>
+  </div>
+
+  <!-- TENSE MASTER TAB -->
+  <div id="content-tense-master" class="content-section">
+    
+    <!-- Mini-Lesson: Visual Timeline -->
+    <div class="section-title">
+      <h2>Understanding the Difference</h2>
+    </div>
+
+    <div class="timeline">
+      <div class="timeline-item">
+        <div class="timeline-label" style="color: var(--red);">⏹️ PRETERITE (Simple Past)</div>
+        <div class="timeline-visual timeline-preterite"></div>
+        <div class="timeline-description">
+          <strong>One-time, completed action at a specific point in time</strong><br>
+          Example: "Ayer hablé con tus padres" (Yesterday I spoke with your parents - it happened once, it's done)
+        </div>
+      </div>
+
+      <div class="timeline-item">
+        <div class="timeline-label" style="color: var(--blue);">🔄 IMPERFECT (Past Habitual/Background)</div>
+        <div class="timeline-visual timeline-imperfect"></div>
+        <div class="timeline-description">
+          <strong>Repeated, ongoing, or habitual actions in the past; setting the scene</strong><br>
+          Example: "Cuando era niño, hablaba español todos los días" (When I was a child, I used to speak Spanish every day - habitual)
+        </div>
+      </div>
+    </div>
+
+    <!-- Time Markers -->
+    <div class="section-title">
+      <h2>Time Markers That Help</h2>
+    </div>
+
+    <div class="marker-grid">
+      <div class="marker-box preterite">
+        <div class="marker-title">Preterite Markers</div>
+        <div class="marker-items">
+          • ayer (yesterday)<br>
+          • anoche (last night)<br>
+          • la semana pasada<br>
+          • hace 3 años<br>
+          • el año pasado<br>
+          • de repente<br>
+          • cuando + action
+        </div>
+      </div>
+
+      <div class="marker-box imperfect">
+        <div class="marker-title">Imperfect Markers</div>
+        <div class="marker-items">
+          • todos los días<br>
+          • siempre<br>
+          • mientras<br>
+          • cuando + state<br>
+          • cada vez que<br>
+          • solía (used to)<br>
+          • frecuentemente
+        </div>
+      </div>
+    </div>
+
+    <div style="text-align: center; padding: 0 20px; margin-bottom: 20px;">
+      <button class="btn btn-secondary" onclick="openMarkerReference()" style="width: auto;">📖 Full Time Marker Reference</button>
+    </div>
+
+    <!-- Decision Quiz -->
+    <div class="section-title">
+      <h2>Decision Quiz</h2>
+    </div>
+
+    <div id="decisionQuizContainer"></div>
+
+    <!-- Story Practice -->
+    <div class="section-title">
+      <h2>Story Practice</h2>
+    </div>
+
+    <div id="storyContainer"></div>
+
+  </div>
+
+  <!-- OVERVIEW TAB -->
+  <div id="content-overview" class="content-section" style="display:none;">
+    <div class="section-title">
+      <h2>Welcome Back</h2>
+    </div>
+    <div style="padding: 0 20px; color: var(--text-muted); font-size: 0.85rem;">
+      <p>💡 Pro tip: Start with "🎯 Tense Master" to master the preterite vs imperfect distinction. This is the hardest part of Spanish grammar!</p>
+    </div>
+  </div>
+
+  <!-- QUIZ TAB -->
+  <div id="content-quiz" class="content-section" style="display:none;">
+    <div class="section-title">
+      <h2>Standard Conjugation Quiz</h2>
+    </div>
+    <div style="padding: 0 20px; color: var(--text-muted); font-size: 0.85rem; text-align: center;">
+      <p>Coming soon...</p>
+    </div>
+  </div>
+</div>
+
+<!-- Time Marker Reference Modal -->
+<div class="modal" id="markerModal">
+  <div class="modal-content">
+    <button class="modal-close" onclick="closeMarkerReference()">&times;</button>
+    <div class="modal-title">Complete Time Marker Guide</div>
+    
+    <div class="marker-reference">
+      <h3>🔴 PRETERITE (Point in Time / Completed Action)</h3>
+      <p>Use preterite for:</p>
+      <ul>
+        <li><strong>Specific completed action:</strong> "Hablé con tus padres" (I spoke with your parents - done)</li>
+        <li><strong>Action that started and ended:</strong> "Trabajé 8 horas" (I worked 8 hours - finished)</li>
+        <li><strong>Series of completed events:</strong> "Llegué, comí, y me fui" (I arrived, ate, and left)</li>
+        <li><strong>Change of state:</strong> "Se enamoró de mí" (She fell in love with me - moment it changed)</li>
+      </ul>
+      
+      <strong>Time markers:</strong>
+      <ul>
+        <li>ayer (yesterday)</li>
+        <li>anoche (last night)</li>
+        <li>la semana pasada (last week)</li>
+        <li>el mes pasado (last month)</li>
+        <li>hace + time (ago): Hace 3 años</li>
+        <li>el año pasado (last year)</li>
+        <li>de repente (suddenly)</li>
+        <li>cuando + specific event (when something happened)</li>
+      </ul>
+
+      <h3>🔵 IMPERFECT (Background / Habitual / Ongoing)</h3>
+      <p>Use imperfect for:</p>
+      <ul>
+        <li><strong>Repeated/habitual actions:</strong> "Hablaba español todos los días" (I used to speak Spanish every day)</li>
+        <li><strong>Background description:</strong> "Era una noche hermosa" (It was a beautiful night - setting the scene)</li>
+        <li><strong>Ongoing action interrupted:</strong> "Hablaba cuando él llegó" (I was speaking when he arrived)</li>
+        <li><strong>What someone was doing:</strong> "¿Qué hacías?" (What were you doing?)</li>
+        <li><strong>Mental/emotional state in past:</strong> "Estaba feliz en esa época" (I was happy during that time)</li>
+      </ul>
+      
+      <strong>Time markers:</strong>
+      <ul>
+        <li>todos los días (every day)</li>
+        <li>siempre (always)</li>
+        <li>frecuentemente (frequently)</li>
+        <li>mientras (while)</li>
+        <li>cada vez que (each time)</li>
+        <li>cuando + state/condition (when I was...)</li>
+        <li>solía + infinitive (used to)</li>
+        <li>en esa época (during that time)</li>
+      </ul>
+
+      <h3>🎯 Quick Memory Trick</h3>
+      <p><strong>Preterite = Photo (snapshot of one moment)</strong><br>
+      Imperfect = Video (ongoing process, background, habit)</p>
+
+      <h3>📖 Real Family Examples</h3>
+      <p><strong>Meeting her parents story:</strong></p>
+      <p>"Hace dos años, fui a su casa por primera vez. <em>(Preterite - specific event)</em> 
+      Mientras conducía, estaba muy nervioso. <em>(Imperfect - state I was in)</em> 
+      Cuando llegué, su madre preparaba la cena. <em>(Imperfect - what she was doing)</em> 
+      Hablamos durante tres horas. <em>(Preterite - completed action)</em> 
+      Fue una experiencia increíble. <em>(Preterite - one-time event)</em>"</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========== STATE ==========
+let tenseMasteryState = {
+  decisionQuizAnswered: 0,
+  decisionQuizCorrect: 0,
+  storyPracticeAnswered: 0,
+  storyPracticeCorrect: 0
+};
+
+// ========== DECISION QUIZ DATA ==========
+const decisionQuestions = [
+  {
+    id: 1,
+    sentence: "Ayer _____ (hablar) con tus padres durante una hora.",
+    context: "You're telling her what you did yesterday - a specific, completed action.",
+    answer: "preterite",
+    correct: "hablé",
+    explanation: "Ayer (yesterday) = specific completed action → Preterite"
+  },
+  {
+    id: 2,
+    sentence: "Cuando _____ (ser) niño, siempre _____ (jugar) en el parque.",
+    context: "You're describing a habitual action from your childhood.",
+    answer: "imperfect",
+    correct: "era, jugaba",
+    explanation: "Siempre (always) = habitual action in past → Imperfect"
+  },
+  {
+    id: 3,
+    sentence: "De repente, _____ (entrar) tu novia y _____ (sonreír).",
+    context: "Describing a specific moment when she walked in.",
+    answer: "preterite",
+    correct: "entró, sonrió",
+    explanation: "De repente (suddenly) = specific moment → Preterite"
+  },
+  {
+    id: 4,
+    sentence: "Mientras _____ (comer), él _____ (contar) historias.",
+    context: "What was happening at the same time - background action.",
+    answer: "imperfect",
+    correct: "comía, contaba",
+    explanation: "Mientras (while) describes simultaneous past actions → Imperfect"
+  },
+  {
+    id: 5,
+    sentence: "Hace tres años, _____ (conocer) a tu hija en una fiesta.",
+    context: "You're telling the story of how you met her - a specific moment.",
+    answer: "preterite",
+    correct: "conocí",
+    explanation: "Hace + time = specific moment in past → Preterite"
+  },
+  {
+    id: 6,
+    sentence: "Ella _____ (ser) muy hermosa cuando la _____ (ver) por primera vez.",
+    context: "Describing her appearance and your impression - ongoing state when something happened.",
+    answer: "imperfect",
+    correct: "era, vi",
+    explanation: "Era (was) = description/state. Vi (saw) = the moment that interrupted the state"
+  }
+];
+
+let currentDecisionQuestion = 0;
+
+// ========== STORY DATA ==========
+const storyPractices = [
+  {
+    id: 1,
+    title: "First Family Dinner",
+    story: `Hace seis meses, mi novia me invitó a cenar con su familia.
+    
+Cuando [BLANK1 - arrive], su madre [BLANK2 - prepare] la cena. 
+[BLANK3 - be] una noche especial y [BLANK4 - be] muy nervioso.
+
+Mientras [BLANK5 - eat], su padre me [BLANK6 - ask] sobre mi trabajo. 
+Yo le [BLANK7 - explain] todo sobre mi carrera. 
+De repente, su hermano [BLANK8 - tell] una historia y todos [BLANK9 - laugh].
+
+[BLANK10 - pass] una noche hermosa. Siempre lo [BLANK11 - remember] con cariño.`,
+    blanks: [
+      { num: 1, verb: "llegar", subject: "yo", answer: "imperfect", options: ["llegué", "llegaba"] },
+      { num: 2, verb: "preparar", subject: "ella", answer: "imperfect", options: ["preparó", "preparaba"] },
+      { num: 3, verb: "ser", subject: "it", answer: "imperfect", options: ["fue", "era"] },
+      { num: 4, verb: "estar", subject: "yo", answer: "imperfect", options: ["estuve", "estaba"] },
+      { num: 5, verb: "comer", subject: "we", answer: "imperfect", options: ["comimos", "comíamos"] },
+      { num: 6, verb: "preguntar", subject: "he", answer: "preterite", options: ["preguntó", "preguntaba"] },
+      { num: 7, verb: "explicar", subject: "yo", answer: "preterite", options: ["expliqué", "explicaba"] },
+      { num: 8, verb: "contar", subject: "he", answer: "preterite", options: ["contó", "contaba"] },
+      { num: 9, verb: "reír", subject: "all", answer: "preterite", options: ["rieron", "reían"] },
+      { num: 10, verb: "pasar", subject: "it", answer: "preterite", options: ["pasó", "pasaba"] },
+      { num: 11, verb: "recordar", subject: "yo", answer: "preterite", options: ["recordé", "recordaba"] }
+    ]
+  }
+];
+
+let currentStory = 0;
+let currentStoryBlanks = {};
+
+// ========== DECISION QUIZ FUNCTIONS ==========
+function renderDecisionQuiz() {
+  if (currentDecisionQuestion >= decisionQuestions.length) {
+    renderDecisionResults();
+    return;
+  }
+
+  const q = decisionQuestions[currentDecisionQuestion];
+  let html = `
+    <div class="decision-question">
+      <div style="color: var(--text-muted); font-size: 0.75rem; margin-bottom: 12px;">
+        Question ${currentDecisionQuestion + 1} of ${decisionQuestions.length}
+      </div>
+      <div class="decision-text">${q.sentence}</div>
+      <div style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 16px; font-style: italic;">
+        ${q.context}
+      </div>
+      <div class="decision-buttons">
+        <button class="decision-btn" id="preteriteBtn" onclick="answerDecisionQuestion('preterite')">
+          ⏹️ PRETERITE<br><span style="font-size: 0.7rem;">One-time completed</span>
+        </button>
+        <button class="decision-btn" id="imperfectBtn" onclick="answerDecisionQuestion('imperfect')">
+          🔄 IMPERFECT<br><span style="font-size: 0.7rem;">Habitual/ongoing</span>
+        </button>
+      </div>
+      <div id="decisionFeedback"></div>
+    </div>
+  `;
+
+  document.getElementById('decisionQuizContainer').innerHTML = html;
+}
+
+function answerDecisionQuestion(answer) {
+  const q = decisionQuestions[currentDecisionQuestion];
+  const isCorrect = answer === q.answer;
+  
+  if (isCorrect) {
+    tenseMasteryState.decisionQuizCorrect++;
+  }
+  tenseMasteryState.decisionQuizAnswered++;
+
+  const preteriteBtn = document.getElementById('preteriteBtn');
+  const imperfectBtn = document.getElementById('imperfectBtn');
+  const feedbackDiv = document.getElementById('decisionFeedback');
+
+  if (answer === 'preterite') {
+    preteriteBtn.classList.add(isCorrect ? 'correct' : 'selected-preterite');
+    imperfectBtn.style.opacity = '0.5';
+  } else {
+    imperfectBtn.classList.add(isCorrect ? 'correct' : 'selected-imperfect');
+    preteriteBtn.style.opacity = '0.5';
+  }
+
+  const feedbackClass = isCorrect ? 'feedback correct' : 'feedback incorrect';
+  feedbackDiv.className = feedbackClass;
+  feedbackDiv.innerHTML = `
+    <strong>${isCorrect ? '✓ Correct!' : '✗ Incorrect'}</strong><br>
+    ${q.explanation}<br>
+    <strong style="margin-top: 8px; display: block;">Answer: ${q.correct}</strong>
+  `;
+
+  preteriteBtn.disabled = true;
+  imperfectBtn.disabled = true;
+
+  // Next button
+  setTimeout(() => {
+    const nextBtn = document.createElement('button');
+    nextBtn.className = 'btn btn-primary';
+    nextBtn.textContent = 'Next Question';
+    nextBtn.onclick = () => {
+      currentDecisionQuestion++;
+      renderDecisionQuiz();
+    };
+    feedbackDiv.appendChild(nextBtn);
+  }, 500);
+
+  updateTenseMasteryScore();
+}
+
+function renderDecisionResults() {
+  const score = Math.round((tenseMasteryState.decisionQuizCorrect / tenseMasteryState.decisionQuizAnswered) * 100);
+  let html = `
+    <div class="decision-question" style="text-align: center;">
+      <div style="font-size: 2rem; font-weight: 700; color: var(--gold-light); margin-bottom: 8px;">${score}%</div>
+      <div style="color: var(--text-muted); margin-bottom: 20px;">
+        You got ${tenseMasteryState.decisionQuizCorrect} of ${tenseMasteryState.decisionQuizAnswered} correct
+      </div>
+      <button class="btn btn-primary" onclick="resetDecisionQuiz()">Try Again</button>
+    </div>
+  `;
+  document.getElementById('decisionQuizContainer').innerHTML = html;
+}
+
+function resetDecisionQuiz() {
+  currentDecisionQuestion = 0;
+  tenseMasteryState.decisionQuizAnswered = 0;
+  tenseMasteryState.decisionQuizCorrect = 0;
+  renderDecisionQuiz();
+}
+
+// ========== STORY PRACTICE FUNCTIONS ==========
+let storySelectedBlank = null;
+
+function renderStoryPractice() {
+  const story = storyPractices[currentStory];
+  currentStoryBlanks = {};
+  storySelectedBlank = null;
+  
+  let html = `
+    <div class="story-practice">
+      <div style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 12px;">
+        <strong>${story.title}</strong>
+      </div>
+      <div style="color: var(--text-muted); font-size: 0.75rem; margin-bottom: 16px; padding: 8px; background: var(--surface2); border-radius: 6px;">
+        📌 Click a <strong>?</strong> blank, then select Preterite or Imperfect
+      </div>
+      <div class="story-text">
+  `;
+
+  let storyText = story.story;
+  story.blanks.forEach((blank, idx) => {
+    const placeholder = `[BLANK${blank.num} - ${blank.verb}]`;
+    const selectHtml = `<span class="blank-select" id="blank${blank.num}" onclick="selectStoryBlank(${blank.num})" style="cursor: pointer;">?</span>`;
+    storyText = storyText.replace(placeholder, selectHtml);
+  });
+
+  html += storyText;
+  html += `</div>`;
+
+  // Options - shown only for selected blank
+  html += `<div id="storyOptionsContainer"></div>`;
+
+  html += `<button class="btn btn-primary" onclick="checkStoryAnswers()">Check Answers</button>`;
+  html += `</div>`;
+
+  document.getElementById('storyContainer').innerHTML = html;
+  renderStoryOptions(null);
+}
+
+function selectStoryBlank(blankNum) {
+  const story = storyPractices[currentStory];
+  const blank = story.blanks.find(b => b.num === blankNum);
+  
+  // Clear previous selection
+  document.querySelectorAll('.blank-select').forEach(b => b.style.borderColor = 'var(--gold)');
+  
+  // Highlight selected blank
+  document.getElementById(`blank${blankNum}`).style.borderColor = 'var(--gold-light)';
+  document.getElementById(`blank${blankNum}`).style.fontWeight = '700';
+  
+  storySelectedBlank = blankNum;
+  renderStoryOptions(blank);
+}
+
+function renderStoryOptions(blank) {
+  const container = document.getElementById('storyOptionsContainer');
+  
+  if (!blank) {
+    container.innerHTML = `<div style="color: var(--text-muted); font-size: 0.8rem; padding: 16px; text-align: center;">Click a ? to choose Preterite or Imperfect</div>`;
+    return;
+  }
+  
+  let html = `
+    <div style="margin-top: 16px; padding: 12px; background: var(--surface2); border-radius: 8px; border-left: 3px solid var(--gold);">
+      <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px;">
+        Blank ${blank.num}: <strong>${blank.verb} (${blank.subject})</strong>
+      </div>
+      <div class="story-options" style="margin: 0;">
+        <button class="option-btn" id="opt-preterite" onclick="fillStoryBlank(${blank.num}, '${blank.options[0]}', '${blank.answer}')">
+          ⏹️ PRETERITE<br><span style="font-size: 0.65rem;">${blank.options[0]}</span>
+        </button>
+        <button class="option-btn" id="opt-imperfect" onclick="fillStoryBlank(${blank.num}, '${blank.options[1]}', '${blank.answer}')">
+          🔄 IMPERFECT<br><span style="font-size: 0.65rem;">${blank.options[1]}</span>
+        </button>
+      </div>
+    </div>
+  `;
+  
+  container.innerHTML = html;
+}
+
+function fillStoryBlank(blankNum, selected, correct) {
+  const blank = document.getElementById(`blank${blankNum}`);
+  const isCorrect = selected === correct;
+  
+  blank.textContent = selected;
+  blank.style.cursor = 'default';
+  blank.onclick = null;
+  
+  if (isCorrect) {
+    blank.classList.add('filled-' + (correct === 'preterite' ? 'preterite' : 'imperfect'));
+  } else {
+    blank.style.borderColor = '#f87171';
+    blank.style.opacity = '0.6';
+  }
+  
+  currentStoryBlanks[blankNum] = { selected, correct, isCorrect };
+  
+  // Show feedback
+  const container = document.getElementById('storyOptionsContainer');
+  const feedbackClass = isCorrect ? 'feedback correct' : 'feedback incorrect';
+  let feedbackHtml = `<div class="${feedbackClass}" style="margin-top: 12px;">
+    <strong>${isCorrect ? '✓ Correct!' : '✗ Incorrect'}</strong><br>
+    ${isCorrect ? 'Good choice!' : `Should be: <strong>${correct}</strong>`}
+  </div>`;
+  
+  container.innerHTML += feedbackHtml;
+  
+  // Auto-move to next blank after 1 second
+  setTimeout(() => {
+    const story = storyPractices[currentStory];
+    const currentIdx = story.blanks.findIndex(b => b.num === blankNum);
+    if (currentIdx < story.blanks.length - 1) {
+      selectStoryBlank(story.blanks[currentIdx + 1].num);
+    } else {
+      storySelectedBlank = null;
+      renderStoryOptions(null);
+    }
+  }, 1500);
+}
+
+function checkStoryAnswers() {
+  const story = storyPractices[currentStory];
+  let correct = 0;
+  
+  story.blanks.forEach(blank => {
+    if (currentStoryBlanks[blank.num] && currentStoryBlanks[blank.num].isCorrect) {
+      correct++;
+    }
+  });
+
+  tenseMasteryState.storyPracticeAnswered += story.blanks.length;
+  tenseMasteryState.storyPracticeCorrect += correct;
+  updateTenseMasteryScore();
+
+  const percent = Math.round((correct / story.blanks.length) * 100);
+  alert(`You got ${correct}/${story.blanks.length} correct (${percent}%)!\n\nPreterite: completed, one-time actions\nImperfect: habitual, ongoing, background`);
+  
+  renderStoryPractice(); // Reset for another round
+}
+
+// ========== UI FUNCTIONS ==========
+function updateTenseMasteryScore() {
+  const totalAnswered = tenseMasteryState.decisionQuizAnswered + tenseMasteryState.storyPracticeAnswered;
+  const totalCorrect = tenseMasteryState.decisionQuizCorrect + tenseMasteryState.storyPracticeCorrect;
+  
+  if (totalAnswered === 0) {
+    document.getElementById('tenseMasteryScore').textContent = '-';
+    document.getElementById('tenseMasteryStatus').textContent = 'Start learning to track progress';
+  } else {
+    const score = Math.round((totalCorrect / totalAnswered) * 100);
+    document.getElementById('tenseMasteryScore').textContent = score + '%';
+    document.getElementById('tenseMasteryStatus').textContent = `${totalCorrect} of ${totalAnswered} correct`;
+  }
+}
+
+function openMarkerReference() {
+  document.getElementById('markerModal').classList.add('active');
+}
+
+function closeMarkerReference() {
+  document.getElementById('markerModal').classList.remove('active');
+}
+
+function setTab(tab) {
+  document.querySelectorAll('.content-section').forEach(s => s.style.display = 'none');
+  document.getElementById('content-' + tab).style.display = 'block';
+  
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+  renderDecisionQuiz();
+  renderStoryPractice();
+  updateTenseMasteryScore();
+});
+</script>
+
+</body>
+</html>
