@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spanish Learning - Family Conversations</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c0f;
+    --surface: #111318;
+    --surface2: #181c23;
+    --border: #1e2430;
+    --gold: #c9a84c;
+    --gold-light: #e8c97a;
+    --gold-dim: rgba(201,168,76,0.15);
+    --text: #e8e6e0;
+    --text-muted: #6b7280;
+    --text-dim: #9ca3af;
+    --green: #4ade80;
+    --red: #f87171;
+    --blue: #60a5fa;
+    --purple: #a78bfa;
+    --radius: 16px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { font-size: 15px; }
+  
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: radial-gradient(ellipse 80% 60% at 50% -10%, rgba(201,168,76,0.07) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .app { position: relative; z-index: 1; max-width: 500px; margin: 0 auto; padding: 0 0 100px; }
+
+  .header {
+    padding: 24px 20px 16px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+  .header-left h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .header-left p { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+  .avatar {
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--gold), #8b6914);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1rem; color: #0a0c0f; font-weight: 700;
+  }
+
+  .nav {
+    display: flex;
+    gap: 4px;
+    padding: 0 20px 20px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav-btn {
+    flex-shrink: 0;
+    padding: 7px 16px;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+    white-space: nowrap;
+  }
+  .nav-btn.active {
+    background: var(--gold-dim);
+    border-color: var(--gold);
+    color: var(--gold-light);
+  }
+
+  .progress-card {
+    margin: 0 20px 16px;
+    background: linear-gradient(145deg, #13171f, #0e1219);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .progress-card::before {
+    content: '';
+    position: absolute;
+    top: -40px; right: -40px;
+    width: 140px; height: 140px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(201,168,76,0.12) 0%, transparent 70%);
+  }
+
+  .pc-label { font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; }
+  .pc-value {
+    font-family: 'Playfair Display', serif;
+    font-size: 2.4rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 6px 0 4px;
+  }
+  .pc-meta { font-size: 0.8rem; color: var(--text-muted); }
+
+  .progress-bar {
+    margin-top: 16px;
+    height: 8px;
+    background: var(--surface2);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--gold), var(--gold-light));
+    border-radius: 4px;
+    transition: width 0.3s ease;
+  }
+
+  .section-title {
+    padding: 16px 20px 12px;
+  }
+  .section-title h2 {
+    font-family: 'Playfair Display', serif;
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .lessons { padding: 0 20px; display: flex; flex-direction: column; gap: 12px; }
+  .lesson-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .lesson-card:hover { border-color: rgba(201,168,76,0.3); background: var(--surface2); }
+
+  .lesson-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  .lesson-title {
+    flex: 1;
+    font-weight: 500;
+    color: var(--text);
+    font-size: 0.95rem;
+  }
+  .lesson-phase {
+    font-size: 0.65rem;
+    background: var(--gold-dim);
+    color: var(--gold-light);
+    padding: 4px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+
+  .lesson-description {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-top: 8px;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    padding: 0 20px;
+    margin-bottom: 16px;
+  }
+
+  .stat-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px;
+    text-align: center;
+  }
+
+  .stat-value {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--gold-light);
+  }
+
+  .stat-label {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin-top: 4px;
+    text-transform: uppercase;
+  }
+
+  .quiz-question {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  .quiz-question-text {
+    font-weight: 500;
+    margin-bottom: 16px;
+    font-size: 0.95rem;
+  }
+
+  .quiz-options {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .quiz-option {
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface2);
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.85rem;
+    text-align: left;
+  }
+
+  .quiz-option:hover {
+    border-color: var(--gold);
+    background: var(--surface);
+  }
+
+  .quiz-option.selected {
+    border-color: var(--gold);
+    background: var(--gold-dim);
+  }
+
+  .quiz-option.correct {
+    border-color: var(--green);
+    background: rgba(74,222,128,0.1);
+    color: var(--green);
+  }
+
+  .quiz-option.incorrect {
+    border-color: var(--red);
+    background: rgba(248,113,113,0.1);
+    color: var(--red);
+  }
+
+  .flashcard {
+    background: var(--surface);
+    border: 2px solid var(--gold);
+    border-radius: 16px;
+    padding: 32px 24px;
+    margin-bottom: 16px;
+    text-align: center;
+    cursor: pointer;
+    min-height: 200px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    transition: all 0.3s;
+  }
+
+  .flashcard:hover {
+    border-color: var(--gold-light);
+    transform: translateY(-4px);
+  }
+
+  .flashcard.flipped {
+    background: var(--gold-dim);
+    border-color: var(--gold-light);
+  }
+
+  .flashcard-front {
+    font-family: 'DM Mono', monospace;
+    font-size: 1.3rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .flashcard-back {
+    display: none;
+  }
+
+  .flashcard.flipped .flashcard-front {
+    display: none;
+  }
+
+  .flashcard.flipped .flashcard-back {
+    display: block;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    color: var(--text);
+  }
+
+  .flashcard-hint {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 16px;
+    font-style: italic;
+  }
+
+  .flashcard-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px 16px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+
+  .flashcard-controls {
+    display: flex;
+    gap: 8px;
+    padding: 0 20px;
+    margin-bottom: 16px;
+  }
+
+  .btn {
+    padding: 12px 16px;
+    border: none;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-family: 'DM Sans', sans-serif;
+    display: inline-block;
+  }
+
+  .btn-primary {
+    background: linear-gradient(135deg, var(--gold), var(--gold-light));
+    color: #0a0c0f;
+    width: 100%;
+    margin-top: 12px;
+  }
+
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(201,168,76,0.3);
+  }
+
+  .btn-secondary {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    flex: 1;
+  }
+
+  .btn-secondary:hover {
+    background: var(--border);
+  }
+
+  .btn-success {
+    background: var(--green);
+    color: #0a0c0f;
+  }
+
+  .btn-danger {
+    background: var(--red);
+    color: white;
+  }
+
+  .action-buttons {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+  }
+
+  .action-buttons .btn {
+    flex: 1;
+    margin-top: 0;
+  }
+
+  .performance-bar {
+    margin-bottom: 12px;
+  }
+
+  .performance-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .performance-bar-bg {
+    height: 8px;
+    background: var(--surface2);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .performance-bar-fill {
+    height: 100%;
+    background: var(--gold);
+    transition: width 0.3s ease;
+  }
+
+  .performance-bar-fill.low { background: var(--red); }
+  .performance-bar-fill.medium { background: var(--blue); }
+  .performance-bar-fill.high { background: var(--green); }
+
+  .recommendation {
+    background: var(--gold-dim);
+    border: 1px solid var(--gold);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 16px;
+  }
+
+  .recommendation h3 {
+    color: var(--gold-light);
+    font-size: 0.9rem;
+    margin-bottom: 8px;
+  }
+
+  .recommendation p {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  .verb-box {
+    background: var(--surface2);
+    border-left: 3px solid var(--gold);
+    padding: 12px;
+    margin: 12px 0;
+    border-radius: 6px;
+    font-family: 'DM Mono', monospace;
+    font-size: 0.75rem;
+    overflow-x: auto;
+    line-height: 1.6;
+  }
+
+  .example-box {
+    background: var(--surface);
+    padding: 12px;
+    margin: 12px 0;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+  }
+
+  .example-spanish {
+    font-weight: 500;
+    color: var(--gold-light);
+    font-size: 0.85rem;
+    margin-bottom: 4px;
+  }
+
+  .example-english {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-style: italic;
+  }
+
+  .modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 100;
+    overflow-y: auto;
+    padding: 20px;
+  }
+
+  .modal.active { display: flex; align-items: flex-end; }
+
+  .modal-content {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 20px 20px 0 0;
+    padding: 24px;
+    width: 100%;
+    max-width: 500px;
+    margin: 0 auto;
+    max-height: 85vh;
+    overflow-y: auto;
+  }
+
+  .modal-close {
+    float: right;
+    cursor: pointer;
+    font-size: 1.5rem;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    padding: 0;
+  }
+
+  .modal-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.4rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 16px;
+    clear: both;
+  }
+
+  .lesson-detail { line-height: 1.6; }
+  .lesson-detail h3 {
+    font-size: 0.95rem;
+    color: var(--gold-light);
+    margin-top: 16px;
+    margin-bottom: 8px;
+  }
+  .lesson-detail p {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+  }
+
+  .lesson-detail ul, .lesson-detail ol {
+    margin-left: 20px;
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    line-height: 1.6;
+  }
+
+  .quiz-progress {
+    margin-bottom: 16px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+
+  @media (max-width: 480px) {
+    .app { max-width: 100%; }
+    .modal-content { border-radius: 20px; max-height: 90vh; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <div class="header">
+    <div class="header-left">
+      <h1>Spanish</h1>
+      <p>Family Conversations</p>
+    </div>
+    <div class="avatar">🇪🇸</div>
+  </div>
+
+  <div class="nav">
+    <button class="nav-btn active" onclick="setTab('overview')">Overview</button>
+    <button class="nav-btn" onclick="setTab('quiz')">Quiz</button>
+    <button class="nav-btn" onclick="setTab('lessons')">Lessons</button>
+    <button class="nav-btn" onclick="setTab('flashcards')">Flashcards</button>
+    <button class="nav-btn" onclick="setTab('progress')">Progress</button>
+  </div>
+
+  <div class="progress-card">
+    <div class="pc-label">Overall Progress</div>
+    <div class="pc-value" id="progressPercent">0%</div>
+    <div class="pc-meta">
+      <span id="quizScore">-</span> Quiz Score
+    </div>
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+    </div>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-box">
+      <div class="stat-value" id="quizzesCompleted">0</div>
+      <div class="stat-label">Quizzes Taken</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-value" id="cardsStudied">0</div>
+      <div class="stat-label">Cards Studied</div>
+    </div>
+  </div>
+
+  <!-- OVERVIEW -->
+  <div id="content-overview" class="content-section">
+    <div class="section-title">
+      <h2>Get Started</h2>
+    </div>
+    <div style="padding: 0 20px 16px;">
+      <div class="recommendation" id="overviewRec">
+        <h3>📚 Your Learning Path</h3>
+        <p>Take a quiz to identify weak areas → Get personalized lessons → Study with flashcards</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- QUIZ -->
+  <div id="content-quiz" class="content-section" style="display:none;">
+    <div class="section-title">
+      <h2>Conjugation Assessment</h2>
+    </div>
+    <div style="padding: 0 20px;">
+      <div class="quiz-progress" id="quizProgressText">Ready to test your skills?</div>
+      <div id="quizContent"></div>
+      <div id="quizResultsContent"></div>
+      <button class="btn btn-primary" id="quizStartBtn" onclick="startQuiz()">Start New Quiz</button>
+    </div>
+  </div>
+
+  <!-- LESSONS -->
+  <div id="content-lessons" class="content-section" style="display:none;">
+    <div class="section-title">
+      <h2>Focused Lessons</h2>
+    </div>
+    <div class="lessons" id="lessonsList"></div>
+  </div>
+
+  <!-- FLASHCARDS -->
+  <div id="content-flashcards" class="content-section" style="display:none;">
+    <div class="section-title">
+      <h2>Practice with Flashcards</h2>
+    </div>
+    <div style="padding: 0 20px;">
+      <div class="flashcard-nav" id="flashcardNav"></div>
+      <div id="flashcardContainer"></div>
+      <div class="flashcard-controls">
+        <button class="btn btn-secondary btn-danger" onclick="markFlashcardWrong()" id="wrongBtn">Need Work</button>
+        <button class="btn btn-secondary btn-success" onclick="markFlashcardRight()" id="rightBtn">Got It</button>
+      </div>
+      <div style="text-align: center; margin-top: 16px;">
+        <button class="btn btn-primary" id="flashcardStartBtn" onclick="startFlashcards()">Start Flashcards</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PROGRESS -->
+  <div id="content-progress" class="content-section" style="display:none;">
+    <div class="section-title">
+      <h2>Your Performance</h2>
+    </div>
+    <div style="padding: 0 20px;">
+      <div id="performanceChart"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Lesson Modal -->
+<div class="modal" id="lessonModal">
+  <div class="modal-content">
+    <button class="modal-close" onclick="closeLesson()">&times;</button>
+    <div class="modal-title" id="lessonTitle"></div>
+    <div class="lesson-detail" id="lessonContent"></div>
+    <button class="btn btn-primary" onclick="closeLesson()">Close</button>
+  </div>
+</div>
+
+<script>
+// ========== QUIZ BANK (Will be randomized) ==========
+const quizBank = [
+  // PRESENT TENSE -AR
+  { id: "q1", tense: "Present", group: "-AR", verb: "hablar", subject: "yo", correct: "hablo", options: ["hablo", "hablas", "habla", "hablamos"] },
+  { id: "q2", tense: "Present", group: "-AR", verb: "hablar", subject: "usted", correct: "habla", options: ["hablo", "hablas", "habla", "hablamos"] },
+  { id: "q3", tense: "Present", group: "-AR", verb: "trabajar", subject: "nosotros", correct: "trabajamos", options: ["trabajo", "trabajas", "trabaja", "trabajamos"] },
+  { id: "q4", tense: "Present", group: "-AR", verb: "necesitar", subject: "ella", correct: "necesita", options: ["necesito", "necesitas", "necesita", "necesitamos"] },
+  
+  // PRESENT TENSE -ER
+  { id: "q5", tense: "Present", group: "-ER", verb: "comer", subject: "yo", correct: "como", options: ["como", "comes", "come", "comemos"] },
+  { id: "q6", tense: "Present", group: "-ER", verb: "comer", subject: "nosotros", correct: "comemos", options: ["como", "comes", "come", "comemos"] },
+  { id: "q7", tense: "Present", group: "-ER", verb: "beber", subject: "ellos", correct: "beben", options: ["bebo", "bebes", "bebe", "beben"] },
+  
+  // PRESENT TENSE -IR
+  { id: "q8", tense: "Present", group: "-IR", verb: "vivir", subject: "yo", correct: "vivo", options: ["vivo", "vives", "vive", "vivimos"] },
+  { id: "q9", tense: "Present", group: "-IR", verb: "vivir", subject: "ellos", correct: "viven", options: ["vivo", "vives", "vive", "viven"] },
+  
+  // PRESENT IRREGULAR
+  { id: "q10", tense: "Present", group: "Irregular", verb: "ser", subject: "yo", correct: "soy", options: ["estoy", "soy", "sere", "somos"] },
+  { id: "q11", tense: "Present", group: "Irregular", verb: "estar", subject: "nosotros", correct: "estamos", options: ["estamos", "somos", "estais", "estan"] },
+  { id: "q12", tense: "Present", group: "Irregular", verb: "tener", subject: "ella", correct: "tiene", options: ["tengo", "tienes", "tiene", "tienen"] },
+  { id: "q13", tense: "Present", group: "Irregular", verb: "ir", subject: "yo", correct: "voy", options: ["vais", "voy", "va", "vamos"] },
+  { id: "q14", tense: "Present", group: "Irregular", verb: "hacer", subject: "yo", correct: "hago", options: ["hizo", "haces", "hago", "hacemos"] },
+  
+  // PRETERITE -AR
+  { id: "q15", tense: "Preterite", group: "-AR", verb: "hablar", subject: "yo", correct: "hablé", options: ["hable", "hablé", "hablo", "hablaba"] },
+  { id: "q16", tense: "Preterite", group: "-AR", verb: "hablar", subject: "ella", correct: "habló", options: ["habla", "hablaba", "habló", "hablaste"] },
+  { id: "q17", tense: "Preterite", group: "-AR", verb: "trabajar", subject: "nosotros", correct: "trabajamos", options: ["trabajamos", "trabajabamos", "trabajé", "trabajaron"] },
+  
+  // PRETERITE -ER
+  { id: "q18", tense: "Preterite", group: "-ER", verb: "comer", subject: "yo", correct: "comí", options: ["comi", "comí", "comia", "come"] },
+  { id: "q19", tense: "Preterite", group: "-ER", verb: "comer", subject: "nosotros", correct: "comimos", options: ["comimos", "comieron", "comiste", "comi"] },
+  
+  // PRETERITE -IR
+  { id: "q20", tense: "Preterite", group: "-IR", verb: "vivir", subject: "yo", correct: "viví", options: ["vivia", "viví", "vivía", "vivo"] },
+  
+  // PRETERITE IRREGULAR
+  { id: "q21", tense: "Preterite", group: "Irregular", verb: "ser/ir", subject: "yo", correct: "fui", options: ["soy", "fue", "fui", "era"] },
+  { id: "q22", tense: "Preterite", group: "Irregular", verb: "tener", subject: "ella", correct: "tuvo", options: ["tenio", "tuvo", "tenia", "tiene"] },
+  { id: "q23", tense: "Preterite", group: "Irregular", verb: "hacer", subject: "yo", correct: "hice", options: ["hize", "hice", "hace", "hacia"] },
+  { id: "q24", tense: "Preterite", group: "Irregular", verb: "ir", subject: "nosotros", correct: "fuimos", options: ["vamos", "fueron", "fuimos", "iban"] },
+  
+  // IMPERFECT
+  { id: "q25", tense: "Imperfect", group: "-AR", verb: "hablar", subject: "yo", correct: "hablaba", options: ["hablo", "hable", "hablaba", "hablé"] },
+  { id: "q26", tense: "Imperfect", group: "-ER", verb: "comer", subject: "ella", correct: "comía", options: ["comio", "comía", "come", "comeria"] },
+  { id: "q27", tense: "Imperfect", group: "Irregular", verb: "ser", subject: "yo", correct: "era", options: ["soy", "fui", "era", "seré"] },
+];
+
+// ========== DYNAMIC LESSONS GENERATOR ==========
+function generateLessonsFromWeakAreas() {
+  if (!progress.quizResults || Object.keys(progress.quizResults).length === 0) {
+    return [];
+  }
+
+  const lessons = [];
+  const results = progress.quizResults;
+  
+  Object.entries(results).forEach(([category, data]) => {
+    if (!data || !data.total) return;
+    const score = (data.correct / data.total) * 100;
+    
+    // Only create lessons for weak areas (below 75%)
+    if (score < 75) {
+      const [tense, group] = category.split(' - ');
+      lessons.push({
+        id: `lesson_${tense}_${group}`.replace(/\s+/g, '_').toLowerCase(),
+        name: `Master ${tense} - ${group}`,
+        tense: tense,
+        group: group,
+        score: score,
+        description: `You scored ${score.toFixed(0)}% on ${group}. Let's master this!`,
+        content: generateLessonContent(tense, group)
+      });
+    }
+  });
+  
+  return lessons.sort((a, b) => a.score - b.score); // Weakest first
+}
+
+function generateLessonContent(tense, group) {
+  const templates = {
+    'Present': {
+      '-AR': {
+        pattern: 'yo: -o | tú: -as | él/ella/usted: -a | nosotros: -amos | ellos/ustedes: -an',
+        verbs: ['hablar (speak)', 'trabajar (work)', 'caminar (walk)', 'necesitar (need)', 'llamar (call)'],
+        examples: [
+          { es: 'Yo hablo español.', en: 'I speak Spanish.' },
+          { es: '¿Usted trabaja aquí?', en: 'Do you work here?' },
+          { es: 'Nosotros caminamos en el parque.', en: 'We walk in the park.' }
+        ]
+      },
+      '-ER': {
+        pattern: 'yo: -o | tú: -es | él/ella/usted: -e | nosotros: -emos | ellos/ustedes: -en',
+        verbs: ['comer (eat)', 'beber (drink)', 'aprender (learn)', 'ver (see)'],
+        examples: [
+          { es: 'Nosotros comemos juntos.', en: 'We eat together.' },
+          { es: '¿Qué bebes?', en: 'What do you drink?' },
+          { es: 'Ella aprende rápido.', en: 'She learns quickly.' }
+        ]
+      },
+      '-IR': {
+        pattern: 'yo: -o | tú: -es | él/ella/usted: -e | nosotros: -imos | ellos/ustedes: -en',
+        verbs: ['vivir (live)', 'escribir (write)', 'abrir (open)', 'partir (leave)'],
+        examples: [
+          { es: '¿Dónde vives?', en: 'Where do you live?' },
+          { es: 'Ellos escriben cartas.', en: 'They write letters.' },
+          { es: 'Abrimos la puerta.', en: 'We open the door.' }
+        ]
+      },
+      'Irregular': {
+        pattern: 'SER: soy, eres, es, somos, son | ESTAR: estoy, estás, está, estamos, están | TENER: tengo, tienes, tiene, tenemos, tienen | IR: voy, vas, va, vamos, van | HACER: hago, haces, hace, hacemos, hacen',
+        verbs: ['ser (to be)', 'estar (to be - location)', 'tener (to have)', 'ir (to go)', 'hacer (to do/make)'],
+        examples: [
+          { es: 'Soy abogado.', en: 'I am a lawyer.' },
+          { es: 'Estoy en casa.', en: 'I am at home.' },
+          { es: 'Tengo 28 años.', en: 'I am 28 years old.' },
+          { es: 'Voy al trabajo.', en: 'I go to work.' },
+          { es: '¿Qué haces?', en: 'What do you do?' }
+        ]
+      }
+    },
+    'Preterite': {
+      '-AR': {
+        pattern: 'yo: -é | tú: -aste | él/ella/usted: -ó | nosotros: -amos | ellos/ustedes: -aron',
+        verbs: ['hablar (spoke)', 'trabajar (worked)', 'llegar (arrived)', 'caminar (walked)'],
+        examples: [
+          { es: 'Ayer hablé con tu madre.', en: 'Yesterday I spoke with your mother.' },
+          { es: 'Ellos llegaron temprano.', en: 'They arrived early.' },
+          { es: 'Trabajé todo el día.', en: 'I worked all day.' }
+        ]
+      },
+      '-ER': {
+        pattern: 'yo: -í | tú: -iste | él/ella/usted: -ió | nosotros: -imos | ellos/ustedes: -ieron',
+        verbs: ['comer (ate)', 'beber (drank)', 'aprender (learned)', 'ver (saw)'],
+        examples: [
+          { es: 'Comí en un buen restaurante.', en: 'I ate at a good restaurant.' },
+          { es: '¿Qué bebieron?', en: 'What did they drink?' },
+          { es: 'Ella aprendió rápido.', en: 'She learned quickly.' }
+        ]
+      },
+      '-IR': {
+        pattern: 'yo: -í | tú: -iste | él/ella/usted: -ió | nosotros: -imos | ellos/ustedes: -ieron',
+        verbs: ['vivir (lived)', 'escribir (wrote)', 'abrir (opened)', 'partir (left)'],
+        examples: [
+          { es: 'Viví en Nueva York.', en: 'I lived in New York.' },
+          { es: 'Escribí una carta.', en: 'I wrote a letter.' },
+          { es: 'Abrieron la puerta.', en: 'They opened the door.' }
+        ]
+      },
+      'Irregular': {
+        pattern: 'FUI/FUITE: fui, fuiste, fue, fuimos, fueron | TUVE: tuve, tuviste, tuvo, tuvimos, tuvieron | HICE: hice, hiciste, hizo, hicimos, hicieron',
+        verbs: ['fui/fue (was/went)', 'estuve (was)', 'tuve (had)', 'hice (did)', 'dije (said)'],
+        examples: [
+          { es: 'Fui a visitarles.', en: 'I went to visit them.' },
+          { es: 'Tuve una buena experiencia.', en: 'I had a good experience.' },
+          { es: '¿Qué hiciste?', en: 'What did you do?' },
+          { es: 'Estuve en la playa.', en: 'I was at the beach.' }
+        ]
+      }
+    },
+    'Imperfect': {
+      '-AR': {
+        pattern: 'yo: -aba | tú: -abas | él/ella/usted: -aba | nosotros: -ábamos | ellos/ustedes: -aban',
+        verbs: ['hablaba (used to speak)', 'trabajaba (used to work)', 'caminaba (used to walk)'],
+        examples: [
+          { es: 'Cuando era joven, hablaba español todos los días.', en: 'When I was young, I used to speak Spanish every day.' },
+          { es: 'Mi padre trabajaba en una oficina.', en: 'My father used to work in an office.' },
+          { es: 'Caminábamos en el parque cada domingo.', en: 'We used to walk in the park every Sunday.' }
+        ]
+      },
+      '-ER': {
+        pattern: 'yo: -ía | tú: -ías | él/ella/usted: -ía | nosotros: -íamos | ellos/ustedes: -ían',
+        verbs: ['comía (used to eat)', 'bebía (used to drink)', 'veía (used to see)'],
+        examples: [
+          { es: 'Ella comía frutas cada día.', en: 'She used to eat fruits every day.' },
+          { es: 'Bebían café por las mañanas.', en: 'They used to drink coffee in the mornings.' },
+          { es: '¿Veías a tus abuelos?', en: 'Did you used to see your grandparents?' }
+        ]
+      },
+      '-IR': {
+        pattern: 'yo: -ía | tú: -ías | él/ella/usted: -ía | nosotros: -íamos | ellos/ustedes: -ían',
+        verbs: ['vivía (used to live)', 'escribía (used to write)', 'abría (used to open)'],
+        examples: [
+          { es: 'Vivía en una casa pequeña.', en: 'I used to live in a small house.' },
+          { es: 'Ella escribía poesía.', en: 'She used to write poetry.' },
+          { es: 'Siempre abríamos las ventanas.', en: 'We always used to open the windows.' }
+        ]
+      },
+      'Irregular': {
+        pattern: 'SER: era, eras, era, éramos, eran | ESTAR: estaba, estabas, estaba, estábamos, estaban | IR: iba, ibas, iba, íbamos, iban',
+        verbs: ['era (used to be)', 'estaba (used to be - location)', 'iba (used to go)'],
+        examples: [
+          { es: 'Cuando era niño, era muy tímido.', en: 'When I was a child, I used to be very shy.' },
+          { es: 'Estaba en la casa todos los días.', en: 'I used to be at the house every day.' },
+          { es: 'Íbamos a la playa cada verano.', en: 'We used to go to the beach every summer.' }
+        ]
+      }
+    }
+  };
+  
+  // Return the template or a default with better content
+  if (templates[tense] && templates[tense][group]) {
+    return templates[tense][group];
+  }
+  
+  // Fallback for any missing combinations
+  return {
+    pattern: `Master ${tense} - ${group} by studying the conjugation patterns and practicing the examples below.`,
+    verbs: [],
+    examples: [
+      { es: 'Study the pattern and examples to master this tense.', en: 'Study the pattern and examples to master this tense.' }
+    ]
+  };
+}
+
+// ========== FLASHCARD GENERATOR ==========
+function generateFlashcardsFromWeakAreas() {
+  if (!progress.quizResults || Object.keys(progress.quizResults).length === 0) {
+    return [];
+  }
+
+  const flashcards = [];
+  const weakQuestions = quizBank.filter(q => {
+    const results = progress.quizResults;
+    const category = `${q.tense} - ${q.group}`;
+    if (!results[category]) return false;
+    const score = (results[category].correct / results[category].total) * 100;
+    return score < 75;
+  });
+
+  // Create flashcards from weak questions
+  weakQuestions.forEach(q => {
+    flashcards.push({
+      front: `${q.tense}<br><small style="color: var(--text-muted); font-size: 0.8rem;">${q.verb} (${q.subject})</small>`,
+      back: `<strong style="font-size: 1.1rem; color: var(--gold-light);">${q.correct}</strong><br><small style="color: var(--text-muted); margin-top: 12px; display: block;">${q.tense} - ${q.group}</small>`,
+      subject: q.subject,
+      verb: q.verb,
+      tense: q.tense,
+      group: q.group
+    });
+  });
+
+  return flashcards;
+}
+
+// ========== STATE ==========
+function initializeProgress() {
+  try {
+    const stored = localStorage.getItem('spanishProgress');
+    if (!stored) {
+      return {
+        completedLessons: [],
+        quizResults: {},
+        flashcardsStudied: 0,
+        quizzesCompleted: 0,
+        startDate: new Date().toISOString()
+      };
+    }
+    const parsed = JSON.parse(stored);
+    return {
+      completedLessons: Array.isArray(parsed.completedLessons) ? parsed.completedLessons : [],
+      quizResults: typeof parsed.quizResults === 'object' && parsed.quizResults !== null ? parsed.quizResults : {},
+      flashcardsStudied: parsed.flashcardsStudied || 0,
+      quizzesCompleted: parsed.quizzesCompleted || 0,
+      startDate: parsed.startDate || new Date().toISOString()
+    };
+  } catch (e) {
+    console.error('Error loading progress:', e);
+    return {
+      completedLessons: [],
+      quizResults: {},
+      flashcardsStudied: 0,
+      quizzesCompleted: 0,
+      startDate: new Date().toISOString()
+    };
+  }
+}
+
+let progress = initializeProgress();
+let quizState = { currentQuestion: 0, answers: [], started: false, completed: false, questions: [] };
+let flashcardState = { currentCard: 0, cards: [], started: false, studied: [] };
+let currentLesson = null;
+
+function saveProgress() {
+  localStorage.setItem('spanishProgress', JSON.stringify(progress));
+}
+
+// ========== QUIZ FUNCTIONS ==========
+function getRandomQuestions(count = 15) {
+  // Shuffle the quiz bank and return random subset
+  const shuffled = [...quizBank].sort(() => Math.random() - 0.5);
+  return shuffled.slice(0, count);
+}
+
+function startQuiz() {
+  quizState = {
+    currentQuestion: 0,
+    answers: [],
+    started: true,
+    completed: false,
+    questions: getRandomQuestions(15) // Randomize each time
+  };
+  document.getElementById('quizResultsContent').innerHTML = '';
+  document.getElementById('quizStartBtn').style.display = 'none';
+  renderQuiz();
+}
+
+function renderQuiz() {
+  const container = document.getElementById('quizContent');
+  
+  if (!quizState.started || quizState.currentQuestion >= quizState.questions.length) {
+    completeQuiz();
+    return;
+  }
+
+  const question = quizState.questions[quizState.currentQuestion];
+  const answered = quizState.answers[quizState.currentQuestion];
+  const options = [...question.options].sort(() => Math.random() - 0.5); // Randomize options
+
+  let html = `
+    <div class="quiz-question">
+      <div class="quiz-progress">Question ${quizState.currentQuestion + 1} of ${quizState.questions.length}</div>
+      <div class="quiz-question-text">Conjugate "<strong>${question.verb}</strong>" for "<strong>${question.subject}</strong>" in ${question.tense}:</div>
+      <div class="quiz-options">
+  `;
+
+  options.forEach(option => {
+    let classes = 'quiz-option';
+    if (answered) {
+      if (option === question.correct) classes += ' correct';
+      else if (option === answered && answered !== question.correct) classes += ' incorrect';
+    }
+    
+    html += `<div class="${classes}" onclick="answerQuestion('${option}')">${option}</div>`;
+  });
+
+  html += `</div>`;
+
+  if (answered) {
+    html += `<div style="margin-top: 12px; padding: 12px; background: var(--surface2); border-radius: 8px; font-size: 0.8rem; color: var(--text-muted);">
+      <strong>${answered === question.correct ? '✓ Correct!' : '✗ Incorrect'}</strong><br>
+      Correct answer: <strong>${question.correct}</strong>
+    </div>`;
+    html += `<button class="btn btn-primary" onclick="nextQuestion()">Next</button>`;
+  }
+
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+function answerQuestion(answer) {
+  if (quizState.answers[quizState.currentQuestion]) return;
+  quizState.answers[quizState.currentQuestion] = answer;
+  renderQuiz();
+}
+
+function nextQuestion() {
+  quizState.currentQuestion++;
+  renderQuiz();
+}
+
+function completeQuiz() {
+  quizState.completed = true;
+  
+  // Calculate performance by category
+  const performance = {};
+  
+  quizState.questions.forEach((question, idx) => {
+    const category = `${question.tense} - ${question.group}`;
+    if (!performance[category]) {
+      performance[category] = { correct: 0, total: 0 };
+    }
+    
+    performance[category].total++;
+    if (quizState.answers[idx] === question.correct) {
+      performance[category].correct++;
+    }
+  });
+
+  progress.quizResults = performance;
+  progress.quizzesCompleted++;
+  saveProgress();
+  
+  renderQuizResults(performance);
+}
+
+function renderQuizResults(performance) {
+  const container = document.getElementById('quizContent');
+  
+  let totalCorrect = 0;
+  let totalQuestions = quizState.answers.length;
+  quizState.answers.forEach((answer, idx) => {
+    if (answer === quizState.questions[idx].correct) totalCorrect++;
+  });
+  
+  const score = Math.round((totalCorrect / totalQuestions) * 100);
+  
+  let html = `
+    <div style="text-align: center; margin-bottom: 24px;">
+      <div style="font-size: 2.4rem; font-weight: 700; color: var(--gold-light); margin-bottom: 8px;">${score}%</div>
+      <div style="font-size: 0.9rem; color: var(--text-muted);">You got ${totalCorrect} of ${totalQuestions} correct</div>
+    </div>
+    <h3 style="color: var(--gold-light); margin-bottom: 12px; font-size: 0.95rem;">Performance by Category</h3>
+  `;
+  
+  Object.entries(performance).forEach(([key, data]) => {
+    const percent = Math.round((data.correct / data.total) * 100);
+    let levelClass = 'low';
+    if (percent >= 75) levelClass = 'high';
+    else if (percent >= 50) levelClass = 'medium';
+    
+    html += `
+      <div class="performance-bar">
+        <div class="performance-label">
+          <span>${key}</span>
+          <span>${data.correct}/${data.total}</span>
+        </div>
+        <div class="performance-bar-bg">
+          <div class="performance-bar-fill ${levelClass}" style="width: ${percent}%"></div>
+        </div>
+      </div>
+    `;
+  });
+  
+  html += `<button class="btn btn-primary" onclick="retakeQuiz()" style="margin-top: 20px;">Retake Quiz</button>`;
+  
+  document.getElementById('quizResultsContent').innerHTML = html;
+  container.innerHTML = '';
+  updateUI();
+}
+
+function retakeQuiz() {
+  document.getElementById('quizResultsContent').innerHTML = '';
+  document.getElementById('quizStartBtn').style.display = 'block';
+  quizState = { currentQuestion: 0, answers: [], started: false, completed: false, questions: [] };
+}
+
+// ========== FLASHCARD FUNCTIONS ==========
+function startFlashcards() {
+  flashcardState.cards = generateFlashcardsFromWeakAreas();
+  if (flashcardState.cards.length === 0) {
+    document.getElementById('flashcardContainer').innerHTML = '<p style="color: var(--text-muted); text-align: center;">No weak areas yet. Take a quiz first!</p>';
+    return;
+  }
+  flashcardState.currentCard = 0;
+  flashcardState.studied = [];
+  flashcardState.started = true;
+  document.getElementById('flashcardStartBtn').style.display = 'none';
+  renderFlashcard();
+}
+
+function renderFlashcard() {
+  if (!flashcardState.started || flashcardState.currentCard >= flashcardState.cards.length) {
+    endFlashcards();
+    return;
+  }
+  
+  const card = flashcardState.cards[flashcardState.currentCard];
+  const nav = document.getElementById('flashcardNav');
+  nav.innerHTML = `<span>${flashcardState.currentCard + 1} of ${flashcardState.cards.length}</span><span>${Math.round((flashcardState.currentCard / flashcardState.cards.length) * 100)}%</span>`;
+  
+  const container = document.getElementById('flashcardContainer');
+  container.innerHTML = `
+    <div class="flashcard" onclick="this.classList.toggle('flipped')">
+      <div class="flashcard-front">${card.front}</div>
+      <div class="flashcard-back">${card.back}</div>
+      <div class="flashcard-hint">Click to reveal answer</div>
+    </div>
+  `;
+  
+  document.getElementById('wrongBtn').style.display = 'inline-block';
+  document.getElementById('rightBtn').style.display = 'inline-block';
+}
+
+function markFlashcardRight() {
+  flashcardState.studied.push(true);
+  flashcardState.currentCard++;
+  renderFlashcard();
+}
+
+function markFlashcardWrong() {
+  flashcardState.studied.push(false);
+  flashcardState.currentCard++;
+  renderFlashcard();
+}
+
+function endFlashcards() {
+  const correct = flashcardState.studied.filter(s => s).length;
+  const total = flashcardState.studied.length;
+  const percent = total > 0 ? Math.round((correct / total) * 100) : 0;
+  
+  progress.flashcardsStudied += total;
+  saveProgress();
+  
+  document.getElementById('flashcardNav').innerHTML = '';
+  document.getElementById('flashcardContainer').innerHTML = `
+    <div style="text-align: center; padding: 40px 20px;">
+      <div style="font-size: 2rem; font-weight: 700; color: var(--gold-light); margin-bottom: 8px;">${percent}%</div>
+      <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 20px;">Got ${correct} of ${total} correct</div>
+      <button class="btn btn-primary" onclick="startFlashcards()">Study Again</button>
+    </div>
+  `;
+  
+  document.getElementById('wrongBtn').style.display = 'none';
+  document.getElementById('rightBtn').style.display = 'none';
+  document.getElementById('flashcardStartBtn').style.display = 'block';
+  
+  updateUI();
+}
+
+// ========== LESSONS ==========
+function openLesson(lesson) {
+  currentLesson = lesson;
+  const modal = document.getElementById('lessonModal');
+  document.getElementById('lessonTitle').textContent = lesson.name;
+  
+  const content = lesson.content;
+  let html = `<p style="color: var(--text-muted); font-size: 0.8rem; margin-bottom: 16px;">Score: ${lesson.score.toFixed(0)}% - Let's improve this!</p>`;
+  
+  if (content.pattern) {
+    html += `<h3>Pattern</h3><div class="verb-box">${content.pattern}</div>`;
+  }
+  
+  if (content.verbs && content.verbs.length > 0) {
+    html += `<h3>Common Verbs</h3><ul style="margin-left: 20px; font-size: 0.85rem; color: var(--text-dim);">`;
+    content.verbs.forEach(v => html += `<li>${v}</li>`);
+    html += `</ul>`;
+  }
+  
+  if (content.examples && content.examples.length > 0) {
+    html += `<h3>Examples</h3>`;
+    content.examples.forEach(ex => {
+      html += `<div class="example-box">
+        <div class="example-spanish">${ex.es}</div>
+        <div class="example-english">${ex.en}</div>
+      </div>`;
+    });
+  }
+  
+  document.getElementById('lessonContent').innerHTML = html;
+  modal.classList.add('active');
+}
+
+function closeLesson() {
+  document.getElementById('lessonModal').classList.remove('active');
+  currentLesson = null;
+}
+
+// ========== UI UPDATES ==========
+function updateUI() {
+  document.getElementById('quizScore').textContent = progress.quizzesCompleted > 0 ? 
+    (Object.values(progress.quizResults).reduce((sum, cat) => sum + (cat.correct/cat.total*100), 0) / Object.keys(progress.quizResults).length).toFixed(0) + '%' : '-';
+  
+  document.getElementById('quizzesCompleted').textContent = progress.quizzesCompleted;
+  document.getElementById('cardsStudied').textContent = progress.flashcardsStudied;
+  
+  renderLessons();
+}
+
+function renderLessons() {
+  const lessons = generateLessonsFromWeakAreas();
+  const container = document.getElementById('lessonsList');
+  
+  if (lessons.length === 0) {
+    container.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-muted);">Take a quiz to generate personalized lessons!</div>';
+    return;
+  }
+  
+  let html = '';
+  lessons.forEach(lesson => {
+    html += `
+      <div class="lesson-card" onclick="openLesson(this.lesson)" style="cursor: pointer;">
+        <div class="lesson-header">
+          <div class="lesson-title">${lesson.name}</div>
+          <div class="lesson-phase">${lesson.score.toFixed(0)}%</div>
+        </div>
+        <div class="lesson-description">${lesson.description}</div>
+      </div>
+    `;
+  });
+  
+  container.innerHTML = html;
+  
+  // Attach lesson data
+  document.querySelectorAll('.lesson-card').forEach((card, idx) => {
+    card.lesson = lessons[idx];
+  });
+}
+
+function setTab(tab) {
+  document.querySelectorAll('.content-section').forEach(s => s.style.display = 'none');
+  document.getElementById('content-' + tab).style.display = 'block';
+  
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+}
+
+// Initialize
+document.addEventListener('DOMContentLoaded', () => {
+  updateUI();
+});
+</script>
+
+</body>
+</html>
