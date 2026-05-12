@@ -1178,12 +1178,21 @@
     <!-- Manual entry -->
     <div id="savings-manual" style="display:none;margin-bottom:14px;">
       <div class="monte-inputs">
-        <div class="input-group"><label>Monthly Income ($)</label>
-          <input type="number" id="sav-income" placeholder="e.g. 9200" oninput="calcSavings()">
+        <div class="input-group"><label>Annual Gross Salary ($)</label>
+          <input type="number" id="sav-salary" placeholder="e.g. 90000" oninput="calcSavings()">
         </div>
-        <div class="input-group"><label>Employer Match ($)</label>
-          <input type="number" id="sav-match" placeholder="e.g. 500" oninput="calcSavings()">
+        <div class="input-group"><label>Roth IRA Contribution ($)</label>
+          <input type="number" id="sav-roth" placeholder="e.g. 8000" oninput="calcSavings()">
         </div>
+        <div class="input-group"><label>HSA Contribution ($)</label>
+          <input type="number" id="sav-hsa" placeholder="e.g. 7500" oninput="calcSavings()">
+        </div>
+        <div class="input-group"><label>Other Pre-tax Deductions ($)</label>
+          <input type="number" id="sav-pretax" placeholder="e.g. 0" oninput="calcSavings()">
+        </div>
+      </div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-top:6px;">
+        Net take-home = Salary - Roth IRA - HSA - Other deductions. Merrill dividend/interest income is auto-detected from your imported CSV.
       </div>
     </div>
 
@@ -3480,48 +3489,50 @@ function setSavingsPeriod(period, btn) {
 
 // Category keywords for auto-classification
 const SPENDING_CATS = {
-  // Exclude these from spending entirely
-  _exclude: ['barclaycard','creditcard','acct_xfer','online transfer','zelle payment to felicia','quickpay_credit','deposit','direct dep','payroll','salary','irs usataxpymt','usataxpymt'],
-  // Tax payments — separate category
-  Taxes:     ['irs','usataxpymt','il dept','state tax','estimated tax','us treasury irs'],
+  // Taxes — IRS payments
+  Taxes: ['irs','usataxpymt','il dept','state tax','estimated tax','us treasury irs'],
   // Housing & Utilities
-  Housing:   ['peoples gas','comed','nicor','peoples energy','rent','mortgage','hoa','insurance','at&t','comcast','xfinity','verizon','t-mobile','sprint','autopay','field school','tuition','facts'],
-  // Food & Dining
-  Food:      ['restaurant','grubhub','doordash','ubereats','starbucks','mcdonalds','chipotle','whole foods','trader joe','jewel','mariano','dominick','food','dining','cafe','pizza','sushi','taco','burger','panda','subway','dunkin','panera','chick-fil','wendy','popeye'],
+  Housing: ['peoples gas','comed','nicor','peoples energy','rent','mortgage','hoa','at&t','comcast','xfinity','verizon','t-mobile','sprint','autopay','field school','tuition','facts','lincoln nationa'],
+  // Food & Dining (restaurants + groceries)
+  Food: ['tst*','grubhub','doordash','ubereats','starbucks','mcdonalds','chipotle','whole foods','trader joe','jewel','mariano','dominick','aldi','food','dining','cafe','pizza','sushi','taco','burger','panda','subway','dunkin','panera','chick-fil','wendy','popeye','olive garden','nicky','carry out','restaurant','diner','bistro','grill','bbq','thai','chinese','italian','mexican','sushi','ramen','bagel','deli','bakery','brunch','tavern','pub','bar ','cosi','potbelly','jimmy john','portillo','giordano','lou malnati','pequod','xoco','avec','girl & the goat','bavette'],
   // Transport & Auto
-  Transport: ['uber','lyft','parking','park chicago','cta','metra','transit','auto','car wash','shell','bp','citgo','speedway','marathon','gas','tesla'],
-  // Healthcare & Pets
-  Healthcare:['pharmacy','cvs','walgreens','rite aid','doctor','dental','vision','hospital','medical','health','chewy','petco','petsmart','vet'],
+  Transport: ['uber','lyft','parking','park chicago','cta','metra','transit','auto','car wash','shell','bp','citgo','speedway','marathon','gas station','tesla','divvy','bird','lime'],
+  // Healthcare & Fitness & Pets
+  Healthcare: ['pharmacy','cvs','walgreens','rite aid','doctor','dental','vision','hospital','medical','health','chewy','petco','petsmart','vet','evolve counseling','counseling','therapy','yoga','stix yoga','stixy','gym','equinox','crunch','planet fitness','orangetheory','fitness','pilates','spa','massage'],
   // Shopping
-  Shopping:  ['amazon','amzn','target','walmart','costco','best buy','apple','nordstrom','macy','tj maxx','ross','marshalls','kohls','home depot','lowes','ikea','wayfair'],
-  // Travel & Entertainment
-  Travel:    ['airline','hotel','airbnb','expedia','booking','delta','united','american air','marriott','hilton','hyatt','southwest'],
-  Entertainment:['netflix','spotify','hulu','movie','theater','concert','ticketmaster','amc','apple tv','disney','youtube','audible'],
-  // Personal & Family transfers (Zelle/CashApp to individuals)
-  Personal:  ['zelle payment to','cash app*','venmo','paypal'],
-  // Subscriptions
-  Subscriptions:['lincoln nationa','insurance','premium','annual fee','membership','subscribe'],
-  Other:     [],
+  Shopping: ['amazon reta','amazon mark','amazon','amzn','target','walmart','costco','best buy','apple','nordstrom','macy','tj maxx','ross','marshalls','kohls','home depot','lowes','ikea','wayfair','shein','zara','h&m','gap','old navy','banana republic','express','forever 21','fashion nova','asos','ebay','etsy'],
+  // Travel
+  Travel: ['airline','hotel','airbnb','expedia','booking','delta','united','american air','marriott','hilton','hyatt','southwest','spirit','frontier','vrbo','trip','travel credit'],
+  // Entertainment & Subscriptions
+  Entertainment: ['netflix','spotify','hulu','disney','hbomax','max.com','apple tv','youtube','audible','movie','theater','concert','ticketmaster','amc','paramount','peacock','sling','discovery','onlyfans','google *'],
+  // Personal transfers
+  Personal: ['zelle payment to','cash app*','venmo','paypal','pp*'],
+  Other: [],
 };
 
-// Transactions to exclude from spending analysis entirely
-function shouldExcludeTransaction(desc, type) {
+// Transactions to exclude from spending entirely
+function shouldExcludeTransaction(desc, type, amt) {
   const lower = (desc||'').toLowerCase();
   const t = (type||'').toLowerCase();
-  // Skip credit card payments (already counted when charged to card)
-  if (lower.includes('barclaycard') && t.includes('ach')) return true;
+  // Skip BarclayCard payments from Chase (double counting)
+  if (lower.includes('barclaycard') && (t.includes('ach') || lower.includes('creditcard'))) return true;
   // Skip account transfers between own accounts
-  if (t === 'acct_xfer' || lower.includes('online transfer') || lower.includes('zelle payment to felicia')) return true;
-  // Skip credits/deposits
-  if (t.includes('credit') || t.includes('deposit') || t.includes('dda_credit')) return true;
+  if (t === 'acct_xfer') return true;
+  if (lower.includes('online transfer') && lower.includes('felicia')) return true;
+  // Skip credits/deposits/refunds on BarclayCard
+  if (t === 'credit' && (lower.includes('payment received') || lower.includes('travel credit') || lower.includes('refund') || lower.includes('credit'))) return true;
+  // Skip direct deposits and payroll
+  if (t.includes('dda_credit') || lower.includes('direct dep') || lower.includes('payroll')) return true;
+  // Skip Merrill/investment transfers
+  if (lower.includes('jp morgan chase bank') || lower.includes('merrill')) return true;
   return false;
 }
 
-function classifyTransaction(desc, type) {
-  if (shouldExcludeTransaction(desc, type)) return '_exclude';
+function classifyTransaction(desc, type, amt) {
+  if (shouldExcludeTransaction(desc, type, amt)) return '_exclude';
   const lower = (desc || '').toLowerCase();
   for (const [cat, keywords] of Object.entries(SPENDING_CATS)) {
-    if (cat === '_exclude' || cat === 'Other') continue;
+    if (cat === 'Other') continue;
     if (keywords.some(k => lower.includes(k))) return cat;
   }
   return 'Other';
@@ -3557,40 +3568,75 @@ function parseChaseCSV(rows, source) {
           category: cat, source, year, month });
       }
     } else if (amt > 0) {
-      // Income: direct deposits, payroll, Zelle received, check deposits
-      const isIncome = /payroll|direct dep|salary|zelle payment from|deposit|transfer from|dda_credit/i.test(desc+txType);
-      if (isIncome) income.push({ date, amount: amt, description: desc, source, year, month });
+      // Exclude Merrill/investment transfers to Chase — not income
+      const isMerrillTransfer = /merrill|jp morgan|investment|brokerage|wire/i.test(desc);
+      const isOwnTransfer = /online transfer|acct_xfer|zelle payment to/i.test(desc+txType);
+      // Only count genuine payroll/direct deposits as income
+      const isIncome = /payroll|direct dep|salary|adp|heartland|gusto|paychex/i.test(desc+txType);
+      if (isIncome && !isMerrillTransfer && !isOwnTransfer) {
+        income.push({ date, amount: amt, description: desc, source, year, month, category:'Salary' });
+      }
     }
   }
   return { transactions, income };
 }
 
 // Parse BarclayCard CSV format
+// Columns: Transaction Date, Description, Category, Amount, Card Last 4 Digits, Purchased by
 function parseBarclayCSV(rows, source) {
-  const transactions = [];
-  // BarclayCard format: Transaction Date, Description, Category, Amount
+  const transactions = [], income = [];
   const header = rows[0] ? rows[0].map(h => (h||'').toLowerCase().trim()) : [];
-  const dateCol = header.findIndex(h => h.includes('date'));
+  const dateCol = header.findIndex(h => h.includes('transaction date') || h.includes('date'));
   const descCol = header.findIndex(h => h.includes('description'));
   const amtCol  = header.findIndex(h => h.includes('amount'));
+  const catCol  = header.findIndex(h => h.includes('category'));
 
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
     if (!row || row.every(c => !c)) continue;
-    const dateStr = row[dateCol] || '';
-    const desc    = row[descCol] || '';
-    const amt     = Math.abs(parseFloat((row[amtCol] || '0').replace(/[$,]/g,'')));
-    if (isNaN(amt) || !dateStr || amt === 0) continue;
+    const dateStr = (row[dateCol] || '').trim();
+    const desc    = (row[descCol] || '').trim();
+    const rawAmt  = (row[amtCol]  || '0').replace(/[$,]/g,'').trim();
+    const bcCat   = (row[catCol]  || '').trim().toUpperCase(); // DEBIT or CREDIT
+    if (!dateStr || !desc) continue;
+
+    const amt = parseFloat(rawAmt);
+    if (isNaN(amt)) continue;
 
     const parts = dateStr.split('/');
-    const year  = parts.length === 3 ? (parts[2].length === 2 ? '20'+parts[2] : parts[2]) : '';
-    const month = parts[0] ? parts[0].padStart(2,'0') : '';
-    const date  = year + '-' + month + '-' + (parts[1]||'').padStart(2,'0');
+    if (parts.length < 3) continue;
+    const year  = parts[2].length === 2 ? '20'+parts[2] : parts[2];
+    const month = parts[0].padStart(2,'0');
+    const date  = year + '-' + month + '-' + parts[1].padStart(2,'0');
 
-    transactions.push({ date, amount: amt, description: desc,
-      category: classifyTransaction(desc), source, year, month });
+    // BarclayCard: negative = charge (spending), positive = credit/payment
+    const absAmt = Math.abs(amt);
+    if (absAmt === 0) continue;
+
+    if (amt < 0) {
+      // Spending — classify and add
+      const cat = classifyTransaction(desc, bcCat, amt);
+      if (cat !== '_exclude') {
+        transactions.push({ date, amount: absAmt, description: desc,
+          category: cat, source, year, month });
+      }
+    } else {
+      // Credits — skip payments and travel credits (not income)
+      // Only count as income if it's a genuine refund
+      const isPayment = /payment received|payment thank/i.test(desc);
+      const isTravel  = /travel credit/i.test(desc);
+      if (!isPayment && !isTravel) {
+        // Genuine refund — subtract from spending by adding negative
+        const cat = classifyTransaction(desc, 'CREDIT', amt);
+        if (cat !== '_exclude') {
+          transactions.push({ date, amount: -absAmt, description: 'Refund: '+desc,
+            category: cat, source, year, month });
+        }
+      }
+    }
   }
-  return { transactions, income: [] };
+  log('BarclayCard: ' + transactions.length + ' transactions parsed from ' + (rows.length-1) + ' rows');
+  return { transactions, income };
 }
 
 // Parse Merrill Lynch transaction CSV for income
@@ -3719,19 +3765,26 @@ function calcSavings() {
   const tx  = filterYear ? txAll.filter(t => t.year === filterYear) : txAll;
   const inc = filterYear ? incAll.filter(t => t.year === filterYear) : incAll;
 
-  // Manual income override
-  const manualIncome = parseFloat(document.getElementById('sav-income')?.value || 0) * 12;
-  const employerMatch = parseFloat(document.getElementById('sav-match')?.value || 0) * 12;
+  // Salary inputs
+  const grossSalary  = parseFloat(document.getElementById('sav-salary')?.value  || 0);
+  const rothContrib  = parseFloat(document.getElementById('sav-roth')?.value    || 0);
+  const hsaContrib   = parseFloat(document.getElementById('sav-hsa')?.value     || 0);
+  const pretaxOther  = parseFloat(document.getElementById('sav-pretax')?.value  || 0);
+  const netSalary    = Math.max(0, grossSalary - rothContrib - hsaContrib - pretaxOther);
 
   const totalSpend  = tx.reduce((s,t) => s+t.amount, 0);
-  const stmtIncome  = inc.reduce((s,t) => s+t.amount, 0);
-  // Use actual Merrill income from imported CSV if available
-  // otherwise fall back to hardcoded $154K annual estimate
+
+  // Merrill income from imported CSV (dividends + interest from Louis' CMA only)
   const merrillImported = inc.filter(t => t.source === 'Merrill').reduce((s,t) => s+t.amount, 0);
+  // Salary income detected from Chase CSV (payroll deposits)
+  const chaseIncome = inc.filter(t => t.source === 'Chase').reduce((s,t) => s+t.amount, 0);
+  // Fall back to $154K if no Merrill CSV imported yet
   const fallbackMerrill = merrillImported > 0 ? 0 : (filterYear === 'all' ? 154378 : filterYear === '2025' ? 154378 : 154378/12*4);
-  const totalIncome = manualIncome > 0
-    ? manualIncome + employerMatch
-    : stmtIncome + merrillImported + fallbackMerrill + employerMatch;
+
+  // Total income: manual salary entry OR detected salary + Merrill dividends/interest
+  const salaryIncome = netSalary > 0 ? netSalary : chaseIncome;
+  const investIncome = merrillImported > 0 ? merrillImported : fallbackMerrill;
+  const totalIncome  = salaryIncome + investIncome;
   const netSavings  = totalIncome - totalSpend;
   const savingsRate = totalIncome > 0 ? (netSavings/totalIncome*100) : 0;
 
@@ -3789,6 +3842,7 @@ function calcSavings() {
       <div style="background:var(--surface2);border-radius:10px;padding:10px;text-align:center;">
         <div style="font-size:0.62rem;color:var(--text-muted);text-transform:uppercase;">Income</div>
         <div style="font-family:'DM Mono',monospace;font-size:0.82rem;color:var(--green);margin-top:4px;">${fmt(totalIncome,true)}</div>
+        <div style="font-size:0.62rem;color:var(--text-muted);margin-top:3px;">${salaryIncome>0?fmt(salaryIncome,true)+' salary':''} ${investIncome>0?'+ '+fmt(investIncome,true)+' invest':''}</div>
       </div>
       <div style="background:var(--surface2);border-radius:10px;padding:10px;text-align:center;">
         <div style="font-size:0.62rem;color:var(--text-muted);text-transform:uppercase;">Spending</div>
