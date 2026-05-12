@@ -1320,6 +1320,15 @@
 
 <!-- Peace of Mind Tab -->
 <div class="tab-view" id="tab-peace">
+  <!-- Real spending summary from Savings Analyzer -->
+  <div id="peace-spending-banner" style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:16px;display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div style="font-size:0.75rem;color:var(--gold-light);font-weight:500;">From Your Imported Statements</div>
+      <div style="font-size:0.68rem;color:var(--text-muted);">excludes taxes</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;" id="peace-spending-grid"></div>
+    <div style="font-size:0.68rem;color:var(--text-muted);margin-top:8px;" id="peace-spending-note"></div>
+  </div>
 
   <!-- Header -->
   <div style="padding:4px 20px 16px;">
@@ -2214,7 +2223,10 @@ function runMonteCarlo() {
   const age       = +document.getElementById('mc-age').value;
   const retire    = +document.getElementById('mc-retire').value;
   const monthly   = +document.getElementById('mc-savings').value;
-  const spend     = +document.getElementById('mc-spend').value;
+  const realMCSpend = getRealAnnualSpend(true, false);
+  const mcSpendEl = document.getElementById('mc-spend');
+  if (realMCSpend && mcSpendEl && (+mcSpendEl.value === 80000 || !mcSpendEl.value)) mcSpendEl.value = realMCSpend;
+  const spend     = +mcSpendEl?.value || realMCSpend || 80000;
   const life      = +document.getElementById('mc-life').value;
   const inflation = +(document.getElementById('mc-inflation')?.value||3)/100;
   const ssMonthly = +(document.getElementById('mc-ss')?.value||0);
@@ -2463,8 +2475,24 @@ function showTab(name, btn) {
   btn.classList.add('active');
   if (name === 'planning' && !planningInited) { initPlanningTab(); planningInited = true; }
   if (name === 'peace' && !peaceInited) { initPeaceTab(); peaceInited = true; }
+  // Refresh Peace banner with latest spending data on every open
+  if (name === 'peace') {
+    const realSpend = getRealAnnualSpend(true, false);
+    const failEl = document.getElementById('fail-spend');
+    if (realSpend && failEl && (+failEl.value === 80000)) failEl.value = realSpend;
+    const banner = document.getElementById('peace-spending-banner');
+    if (banner && realSpend) initPeaceTab();
+  }
   if (name === 'espp') { initESPP(); }
   if (name === 'wellness' && !wellnessInited) { initWellnessTab(); wellnessInited = true; }
+  // Pre-fill Retire tab MC with real spending
+  if (name === 'retire') {
+    const realSpend = getRealAnnualSpend(true, false);
+    if (realSpend) {
+      const mcEl = document.getElementById('mc-spend');
+      if (mcEl && (+mcEl.value === 80000 || !mcEl.value)) mcEl.value = realSpend;
+    }
+  }
   if (name === 'trends' && !trendsInited) { initTrendTab(); trendsInited = true; }
 }
 
@@ -2773,6 +2801,74 @@ function calcESPP() {
 }
 
 
+// ── SPENDING SYNC — pulls real data from Savings Analyzer ───────
+// Returns annualized spending from imported transactions
+function getRealAnnualSpend(excludeTaxes=true, excludePersonal=false) {
+  const tx = savingsData.transactions;
+  if (!tx || !tx.length) return null;
+
+  // Get date range of imported data
+  const dates = tx.map(t => t.date).sort();
+  const firstDate = new Date(dates[0]);
+  const lastDate  = new Date(dates[dates.length-1]);
+  const monthsCovered = Math.max(1,
+    (lastDate.getFullYear() - firstDate.getFullYear()) * 12 +
+    (lastDate.getMonth() - firstDate.getMonth()) + 1
+  );
+
+  // Filter and sum
+  const filtered = tx.filter(t => {
+    if (excludeTaxes   && t.category === 'Taxes')    return false;
+    if (excludePersonal && t.category === 'Personal') return false;
+    return true;
+  });
+  const totalSpend = filtered.reduce((s,t) => s+t.amount, 0);
+
+  // Annualize based on months of data
+  const annualized = (totalSpend / monthsCovered) * 12;
+  return Math.round(annualized);
+}
+
+// Returns real monthly spending
+function getRealMonthlySpend(excludeTaxes=true, excludePersonal=false) {
+  const annual = getRealAnnualSpend(excludeTaxes, excludePersonal);
+  return annual ? Math.round(annual / 12) : null;
+}
+
+// Returns real annual income from savings data
+function getRealAnnualIncome() {
+  const inc = savingsData.income;
+  if (!inc || !inc.length) return null;
+  const dates = inc.map(t => t.date).sort();
+  const firstDate = new Date(dates[0]);
+  const lastDate  = new Date(dates[dates.length-1]);
+  const monthsCovered = Math.max(1,
+    (lastDate.getFullYear() - firstDate.getFullYear()) * 12 +
+    (lastDate.getMonth() - firstDate.getMonth()) + 1
+  );
+  const total = inc.reduce((s,t) => s+t.amount, 0);
+  return Math.round((total / monthsCovered) * 12);
+}
+
+// Returns spending breakdown by category (annualized)
+function getRealSpendingByCategory(excludeTaxes=true) {
+  const tx = savingsData.transactions;
+  if (!tx || !tx.length) return {};
+  const dates = tx.map(t => t.date).sort();
+  const months = Math.max(1,
+    (new Date(dates[dates.length-1]).getFullYear() - new Date(dates[0]).getFullYear()) * 12 +
+    (new Date(dates[dates.length-1]).getMonth() - new Date(dates[0]).getMonth()) + 1
+  );
+  const cats = {};
+  tx.forEach(t => {
+    if (excludeTaxes && t.category === 'Taxes') return;
+    cats[t.category] = (cats[t.category]||0) + t.amount;
+  });
+  // Annualize each category
+  Object.keys(cats).forEach(k => cats[k] = Math.round(cats[k]/months*12));
+  return cats;
+}
+
 // ── SAVINGS ANALYZER ────────────────────────────────────────────
 
 
@@ -2922,7 +3018,8 @@ let cfChartInst = null;
 // ── AM I OK? INDICATOR ────────────────────────────────────────────
 function renderAmIOK() {
   const nw = calcNetWorth();
-  const annualSpend = parseFloat(localStorage.getItem('wd_annual_spend') || '80000');
+  const realSpend = getRealAnnualSpend(true, false);
+  const annualSpend = realSpend || parseFloat(localStorage.getItem('wd_annual_spend') || '80000');
   const wr = nw > 0 ? annualSpend / nw : 1;
   const divIncome = 0;
   const banner = document.getElementById('am-i-ok-banner');
@@ -3062,7 +3159,10 @@ function calcFailScenarios() {
   if (!el) return;
   const nw = calcNetWorth();
   const life = +(document.getElementById('fail-life')?.value||90);
-  const spend = +(document.getElementById('fail-spend')?.value||80000);
+  const realSpend = getRealAnnualSpend(true, false);
+  const failSpendEl = document.getElementById('fail-spend');
+  if (realSpend && failSpendEl && (failSpendEl.value == '80000' || !failSpendEl.value)) failSpendEl.value = realSpend;
+  const spend = +(failSpendEl?.value||realSpend||80000);
   const yearsLeft = life - 45;
 
   // Find the return rate at which money runs out exactly
@@ -3161,8 +3261,15 @@ function renderWorries() {
 
 // ── CASH FLOW TRACKER ─────────────────────────────────────────────
 function renderCashFlow() {
-  const income   = +(document.getElementById('cf-income')?.value||9200);
-  const expenses = +(document.getElementById('cf-expenses')?.value||6667);
+  const realIncome  = getRealAnnualIncome();
+  const realExpenses= getRealMonthlySpend(true, false);
+  // Pre-fill inputs with real data if available and fields are empty/default
+  const incomeEl   = document.getElementById('cf-income');
+  const expenseEl  = document.getElementById('cf-expenses');
+  if (realIncome  && incomeEl  && (incomeEl.value  == '9200' || !incomeEl.value))  incomeEl.value  = Math.round(realIncome/12);
+  if (realExpenses && expenseEl && (expenseEl.value == '6667' || !expenseEl.value)) expenseEl.value = realExpenses;
+  const income   = +(incomeEl?.value||9200);
+  const expenses = +(expenseEl?.value||6667);
   const net      = income - expenses;
   const divMonthly = 0;
   const isPositive = net >= 0;
@@ -3479,6 +3586,74 @@ function calcESPP() {
 }
 
 
+// ── SPENDING SYNC — pulls real data from Savings Analyzer ───────
+// Returns annualized spending from imported transactions
+function getRealAnnualSpend(excludeTaxes=true, excludePersonal=false) {
+  const tx = savingsData.transactions;
+  if (!tx || !tx.length) return null;
+
+  // Get date range of imported data
+  const dates = tx.map(t => t.date).sort();
+  const firstDate = new Date(dates[0]);
+  const lastDate  = new Date(dates[dates.length-1]);
+  const monthsCovered = Math.max(1,
+    (lastDate.getFullYear() - firstDate.getFullYear()) * 12 +
+    (lastDate.getMonth() - firstDate.getMonth()) + 1
+  );
+
+  // Filter and sum
+  const filtered = tx.filter(t => {
+    if (excludeTaxes   && t.category === 'Taxes')    return false;
+    if (excludePersonal && t.category === 'Personal') return false;
+    return true;
+  });
+  const totalSpend = filtered.reduce((s,t) => s+t.amount, 0);
+
+  // Annualize based on months of data
+  const annualized = (totalSpend / monthsCovered) * 12;
+  return Math.round(annualized);
+}
+
+// Returns real monthly spending
+function getRealMonthlySpend(excludeTaxes=true, excludePersonal=false) {
+  const annual = getRealAnnualSpend(excludeTaxes, excludePersonal);
+  return annual ? Math.round(annual / 12) : null;
+}
+
+// Returns real annual income from savings data
+function getRealAnnualIncome() {
+  const inc = savingsData.income;
+  if (!inc || !inc.length) return null;
+  const dates = inc.map(t => t.date).sort();
+  const firstDate = new Date(dates[0]);
+  const lastDate  = new Date(dates[dates.length-1]);
+  const monthsCovered = Math.max(1,
+    (lastDate.getFullYear() - firstDate.getFullYear()) * 12 +
+    (lastDate.getMonth() - firstDate.getMonth()) + 1
+  );
+  const total = inc.reduce((s,t) => s+t.amount, 0);
+  return Math.round((total / monthsCovered) * 12);
+}
+
+// Returns spending breakdown by category (annualized)
+function getRealSpendingByCategory(excludeTaxes=true) {
+  const tx = savingsData.transactions;
+  if (!tx || !tx.length) return {};
+  const dates = tx.map(t => t.date).sort();
+  const months = Math.max(1,
+    (new Date(dates[dates.length-1]).getFullYear() - new Date(dates[0]).getFullYear()) * 12 +
+    (new Date(dates[dates.length-1]).getMonth() - new Date(dates[0]).getMonth()) + 1
+  );
+  const cats = {};
+  tx.forEach(t => {
+    if (excludeTaxes && t.category === 'Taxes') return;
+    cats[t.category] = (cats[t.category]||0) + t.amount;
+  });
+  // Annualize each category
+  Object.keys(cats).forEach(k => cats[k] = Math.round(cats[k]/months*12));
+  return cats;
+}
+
 // ── SAVINGS ANALYZER ────────────────────────────────────────────
 // ── ESPP CALCULATOR ──────────────────────────────────────────────
 // ── ESPP CALCULATOR ──────────────────────────────────────────────
@@ -3626,6 +3801,74 @@ function calcESPP() {
 }
 
 
+// ── SPENDING SYNC — pulls real data from Savings Analyzer ───────
+// Returns annualized spending from imported transactions
+function getRealAnnualSpend(excludeTaxes=true, excludePersonal=false) {
+  const tx = savingsData.transactions;
+  if (!tx || !tx.length) return null;
+
+  // Get date range of imported data
+  const dates = tx.map(t => t.date).sort();
+  const firstDate = new Date(dates[0]);
+  const lastDate  = new Date(dates[dates.length-1]);
+  const monthsCovered = Math.max(1,
+    (lastDate.getFullYear() - firstDate.getFullYear()) * 12 +
+    (lastDate.getMonth() - firstDate.getMonth()) + 1
+  );
+
+  // Filter and sum
+  const filtered = tx.filter(t => {
+    if (excludeTaxes   && t.category === 'Taxes')    return false;
+    if (excludePersonal && t.category === 'Personal') return false;
+    return true;
+  });
+  const totalSpend = filtered.reduce((s,t) => s+t.amount, 0);
+
+  // Annualize based on months of data
+  const annualized = (totalSpend / monthsCovered) * 12;
+  return Math.round(annualized);
+}
+
+// Returns real monthly spending
+function getRealMonthlySpend(excludeTaxes=true, excludePersonal=false) {
+  const annual = getRealAnnualSpend(excludeTaxes, excludePersonal);
+  return annual ? Math.round(annual / 12) : null;
+}
+
+// Returns real annual income from savings data
+function getRealAnnualIncome() {
+  const inc = savingsData.income;
+  if (!inc || !inc.length) return null;
+  const dates = inc.map(t => t.date).sort();
+  const firstDate = new Date(dates[0]);
+  const lastDate  = new Date(dates[dates.length-1]);
+  const monthsCovered = Math.max(1,
+    (lastDate.getFullYear() - firstDate.getFullYear()) * 12 +
+    (lastDate.getMonth() - firstDate.getMonth()) + 1
+  );
+  const total = inc.reduce((s,t) => s+t.amount, 0);
+  return Math.round((total / monthsCovered) * 12);
+}
+
+// Returns spending breakdown by category (annualized)
+function getRealSpendingByCategory(excludeTaxes=true) {
+  const tx = savingsData.transactions;
+  if (!tx || !tx.length) return {};
+  const dates = tx.map(t => t.date).sort();
+  const months = Math.max(1,
+    (new Date(dates[dates.length-1]).getFullYear() - new Date(dates[0]).getFullYear()) * 12 +
+    (new Date(dates[dates.length-1]).getMonth() - new Date(dates[0]).getMonth()) + 1
+  );
+  const cats = {};
+  tx.forEach(t => {
+    if (excludeTaxes && t.category === 'Taxes') return;
+    cats[t.category] = (cats[t.category]||0) + t.amount;
+  });
+  // Annualize each category
+  Object.keys(cats).forEach(k => cats[k] = Math.round(cats[k]/months*12));
+  return cats;
+}
+
 // ── SAVINGS ANALYZER ─────────────────────────────────────────────
 
 let savingsData = JSON.parse(localStorage.getItem('wd_savings_data') || 'null') || {
@@ -3664,21 +3907,25 @@ const SPENDING_CATS = {
   // Taxes — IRS payments
   Taxes: ['irs','usataxpymt','il dept','state tax','estimated tax','us treasury irs'],
   // Housing & Utilities
-  Housing: ['peoples gas','comed','nicor','peoples energy','rent','mortgage','hoa','at&t','comcast','xfinity','verizon','t-mobile','sprint','autopay','field school','tuition','facts','lincoln nationa','ricardo torres'],
+  Housing: ['peoples gas','comed','nicor','peoples energy','rent','mortgage','hoa','at&t','att bill','comcast','xfinity','verizon','t-mobile','sprint','autopay','field school','tuition','facts','lincoln nationa','ricardo torres','west pacific storage','storage'],
   // Food & Dining (restaurants + groceries)
-  Food: ['tst*','grubhub','doordash','ubereats','starbucks','mcdonalds','chipotle','whole foods','trader joe','jewel','mariano','dominick','aldi','food','dining','cafe','pizza','sushi','taco','burger','panda','subway','dunkin','panera','chick-fil','wendy','popeye','olive garden','nicky','carry out','restaurant','diner','bistro','grill','bbq','thai','chinese','italian','mexican','sushi','ramen','bagel','deli','bakery','brunch','tavern','pub','bar ','cosi','potbelly','jimmy john','portillo','giordano','lou malnati','pequod','xoco','avec','girl & the goat','bavette'],
+  Food: ['tst*','grubhub','doordash','ubereats','starbucks','mcdonalds','chipotle','whole foods','trader joe','jewel','mariano','dominick','aldi','food','dining','cafe','pizza','sushi','taco','burger','panda','subway','dunkin','panera','chick-fil','wendy','popeye','olive garden','nicky','carry out','restaurant','diner','bistro','grill','bbq','thai','chinese','italian','mexican','ramen','bagel','deli','bakery','brunch','tavern','pub','bar ','cosi','potbelly','jimmy john','portillo','giordano','lou malnati','pequod','xoco','avec','girl & the goat','bavette','panchos','pistola'],
   // Transport & Auto
   Transport: ['uber','lyft','parking','park chicago','cta','metra','transit','auto','car wash','shell','bp','citgo','speedway','marathon','gas station','tesla','divvy','bird','lime'],
-  // Healthcare & Fitness & Pets
-  Healthcare: ['pharmacy','cvs','walgreens','rite aid','doctor','dental','vision','hospital','medical','health','chewy','petco','petsmart','vet','evolve counseling','counseling','therapy','yoga','stix yoga','stixy','gym','equinox','crunch','planet fitness','orangetheory','fitness','pilates','spa','massage'],
+  // Healthcare & Fitness
+  Healthcare: ['pharmacy','cvs','walgreens','rite aid','doctor','dental','vision','hospital','medical','health','evolve counseling','counseling','therapy','yoga','stix yoga','stixy','gym','equinox','crunch','planet fitness','orangetheory','fitness','pilates','spa','massage'],
+  // Pets — Eli
+  Pets: ['chewy','petco','petsmart','vet','animal hospital','pulaski animal','brighton park animal','scout - west loop','scout west loop','rover','pet sit','dog','puppy'],
+  // Education — music lessons, tutoring
+  Education: ['mckinley park music','music school','music lesson','tutor','kumon','learning','school supply','field school','facts'],
   // Shopping
   Shopping: ['amazon reta','amazon mark','amazon','amzn','target','walmart','costco','best buy','apple','nordstrom','macy','tj maxx','ross','marshalls','kohls','home depot','lowes','ikea','wayfair','shein','zara','h&m','gap','old navy','banana republic','express','forever 21','fashion nova','asos','ebay','etsy'],
   // Travel
   Travel: ['airline','hotel','airbnb','expedia','booking','delta','united','american air','marriott','hilton','hyatt','southwest','spirit','frontier','vrbo','trip','travel credit'],
-  // Entertainment & Subscriptions
-  Entertainment: ['netflix','spotify','hulu','disney','hbomax','max.com','apple tv','youtube','audible','movie','theater','concert','ticketmaster','amc','paramount','peacock','sling','discovery','onlyfans','google *'],
+  // Entertainment
+  Entertainment: ['netflix','spotify','hulu','disney','hbomax','max.com','apple tv','youtube','audible','movie','theater','concert','ticketmaster','amc','paramount','peacock','sling','discovery','onlyfans','google *','reggies','reggie'],
   // Personal transfers
-  Personal: ['zelle payment to','cash app*','venmo','paypal','pp*'],
+  Personal: ['zelle payment to','cash app*','venmo','paypal','pp*','atm withdrawal','atm cash'],
   Other: [],
 };
 
@@ -4464,6 +4711,29 @@ let legacyChartInst = null;
 let peaceInited = false;
 
 function initPeaceTab() {
+  // Populate real spending banner
+  const realSpend  = getRealAnnualSpend(true, false);
+  const realMonthly= getRealMonthlySpend(true, false);
+  const realIncome = getRealAnnualIncome();
+  const banner = document.getElementById('peace-spending-banner');
+  const grid   = document.getElementById('peace-spending-grid');
+  const note   = document.getElementById('peace-spending-note');
+  if (banner && realSpend) {
+    banner.style.display = 'block';
+    const nw = calcNetWorth();
+    const wr = nw > 0 ? (realSpend/nw*100).toFixed(2) : '—';
+    const cats = getRealSpendingByCategory(true);
+    const topCat = Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,3);
+    grid.innerHTML = [
+      { label:'Monthly Spend', val: fmt(realMonthly||0), color:'var(--red)' },
+      { label:'Annual Spend',  val: fmt(realSpend),      color:'var(--red)' },
+      { label:'Withdrawal Rate',val: wr+'%',             color: parseFloat(wr)<3?'var(--green)':'var(--gold-light)' },
+    ].map(s=>`<div style="background:var(--surface);border-radius:10px;padding:8px;text-align:center;">
+      <div style="font-size:0.6rem;color:var(--text-muted);text-transform:uppercase;">${s.label}</div>
+      <div style="font-family:'DM Mono',monospace;font-size:0.85rem;color:${s.color};margin-top:3px;">${s.val}</div>
+    </div>`).join('');
+    if (note) note.textContent = 'Top spending: ' + topCat.map(([c,v])=>c+' '+fmt(v,true)).join(' · ');
+  }
   updateAllPeace();
   calcSpendDown();
   calcLegacy();
@@ -4687,6 +4957,10 @@ function setSpendDownView(mode, btn) {
 
 function calcSpendDown() {
   const slider = document.getElementById('spenddown-slider');
+  const realSDSpend = getRealAnnualSpend(true, false);
+  if (realSDSpend && slider && +slider.value === 80000) {
+    slider.value = realSDSpend;
+  }
   const labelEl = document.getElementById('spenddown-label');
   const resultEl = document.getElementById('spenddown-result');
   if (!slider||!resultEl) return;
