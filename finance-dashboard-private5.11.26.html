@@ -5532,6 +5532,18 @@ async function parsePDF(file) {
     } else {
       document.getElementById('prev-status').innerHTML = '<span class="status-badge warn">Enter manually</span>';
       log('Could not auto-detect — please enter balance manually above');
+      // BarclayCard transaction CSV has no balance — use existing or skip
+      if (importState.inst === 'barclaycard') {
+        const existingAcct = accounts.find(a => a.id === 'barclaycard');
+        const existingBal  = existingAcct ? Math.abs(existingAcct.balance) : 0;
+        if (existingBal) {
+          document.getElementById('prev-balance').value = existingBal.toFixed(2);
+          document.getElementById('prev-status').innerHTML = '<span class="status-badge ok">Using saved balance</span>';
+          log('BarclayCard: using saved balance $' + existingBal.toLocaleString() + '. Transactions processed for Savings Analyzer.');
+        } else {
+          log('BarclayCard: transactions processed for Savings Analyzer. Enter your current statement balance above and tap Apply.');
+        }
+      }
     }
   } catch(err) {
     log('Auto-parse unavailable on this device (' + err.message + ')');
