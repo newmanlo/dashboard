@@ -3609,13 +3609,23 @@ function parseChaseCSV(rows, source) {
 // Columns: Transaction Date, Description, Category, Amount, Card Last 4 Digits, Purchased by
 function parseBarclayCSV(rows, source) {
   const transactions = [], income = [];
-  const header = rows[0] ? rows[0].map(h => (h||'').toLowerCase().trim()) : [];
-  const dateCol = header.findIndex(h => h.includes('transaction date') || h.includes('date'));
+  // Find header row — may not be first row
+  let headerRowIdx = 0;
+  for (let i = 0; i < Math.min(rows.length, 10); i++) {
+    const r = rows[i];
+    if (r && r.some(c => /transaction date|description|amount/i.test(c||''))) {
+      headerRowIdx = i; break;
+    }
+  }
+  const header = rows[headerRowIdx] ? rows[headerRowIdx].map(h => (h||'').toLowerCase().trim()) : [];
+  log('BarclayCard headers found: ' + header.join(' | '));
+  const dateCol = header.findIndex(h => h.includes('transaction date') || (h.includes('date') && !h.includes('post')));
   const descCol = header.findIndex(h => h.includes('description'));
   const amtCol  = header.findIndex(h => h.includes('amount'));
   const catCol  = header.findIndex(h => h.includes('category'));
+  log('BarclayCard cols: date=' + dateCol + ' desc=' + descCol + ' amt=' + amtCol + ' cat=' + catCol);
 
-  for (let i = 1; i < rows.length; i++) {
+  for (let i = headerRowIdx + 1; i < rows.length; i++) {
     const row = rows[i];
     if (!row || row.every(c => !c)) continue;
     const dateStr = (row[dateCol] || '').trim();
@@ -3749,6 +3759,7 @@ function parseMerrillCSV(rows, source) {
 
 // Called from Import tab when Chase/Barclaycard CSV is parsed
 function processSavingsImport(rows, instId) {
+  log('Savings import: ' + instId + ' with ' + rows.length + ' rows');
   let parsed;
   if (instId === 'chase') {
     parsed = parseChaseCSV(rows, 'Chase');
@@ -3756,7 +3767,8 @@ function processSavingsImport(rows, instId) {
     parsed = parseBarclayCSV(rows, 'BarclayCard');
   } else if (instId === 'merrill') {
     parsed = parseMerrillCSV(rows, 'Merrill');
-  } else return;
+  } else { log('Unknown instId: ' + instId); return; }
+  log(instId + ' result: ' + parsed.transactions.length + ' tx, ' + parsed.income.length + ' income');
 
   // Merge — avoid duplicates by date+amount+desc
   const existing = new Set(savingsData.transactions.map(t => t.date+'|'+t.amount+'|'+t.description));
