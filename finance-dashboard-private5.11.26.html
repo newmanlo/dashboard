@@ -5538,11 +5538,10 @@ async function parsePDF(file) {
         const existingBal  = existingAcct ? Math.abs(existingAcct.balance) : 0;
         if (existingBal) {
           document.getElementById('prev-balance').value = existingBal.toFixed(2);
-          document.getElementById('prev-status').innerHTML = '<span class="status-badge ok">Using saved balance</span>';
-          log('BarclayCard: using saved balance $' + existingBal.toLocaleString() + '. Transactions processed for Savings Analyzer.');
-        } else {
-          log('BarclayCard: transactions processed for Savings Analyzer. Enter your current statement balance above and tap Apply.');
+          document.getElementById('prev-status').innerHTML = '<span class="status-badge ok">Using saved balance — update if needed</span>';
         }
+        document.getElementById('preview-box').classList.add('show');
+        log('BarclayCard: ' + (results.data.length-1) + ' transactions ready. Confirm your current balance and tap Apply to Dashboard.');
       }
     }
   } catch(err) {
