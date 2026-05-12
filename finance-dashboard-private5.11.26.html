@@ -1203,10 +1203,19 @@
     </div>
 
     <!-- Period selector -->
-    <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
+    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
       <button class="asset-acct-btn active" id="sav-period-2025" onclick="setSavingsPeriod('2025',this)">2025</button>
       <button class="asset-acct-btn" id="sav-period-2026" onclick="setSavingsPeriod('2026',this)">2026</button>
       <button class="asset-acct-btn" id="sav-period-all" onclick="setSavingsPeriod('all',this)">All Time</button>
+    </div>
+    <!-- Toggle options -->
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+      <button id="sav-toggle-taxes" class="asset-acct-btn active" onclick="toggleSavingsOption('taxes',this)" style="font-size:0.7rem;">
+        Include Taxes
+      </button>
+      <button id="sav-toggle-personal" class="asset-acct-btn active" onclick="toggleSavingsOption('personal',this)" style="font-size:0.7rem;">
+        Include Personal
+      </button>
     </div>
 
     <div id="savings-results"></div>
@@ -3479,6 +3488,21 @@ function saveSavingsData() { localStorage.setItem('wd_savings_data', JSON.string
 
 let savingsPeriod = '2025';
 let savingsChartInst = null;
+let savingsExcludeTaxes  = false;
+let savingsExcludePersonal = false;
+
+function toggleSavingsOption(option, btn) {
+  if (option === 'taxes') {
+    savingsExcludeTaxes = !savingsExcludeTaxes;
+    btn.classList.toggle('active', !savingsExcludeTaxes);
+    btn.textContent = savingsExcludeTaxes ? 'Taxes Excluded' : 'Include Taxes';
+  } else if (option === 'personal') {
+    savingsExcludePersonal = !savingsExcludePersonal;
+    btn.classList.toggle('active', !savingsExcludePersonal);
+    btn.textContent = savingsExcludePersonal ? 'Personal Excluded' : 'Include Personal';
+  }
+  calcSavings();
+}
 
 function setSavingsPeriod(period, btn) {
   savingsPeriod = period;
@@ -3772,7 +3796,15 @@ function calcSavings() {
   const pretaxOther  = parseFloat(document.getElementById('sav-pretax')?.value  || 0);
   const netSalary    = Math.max(0, grossSalary - rothContrib - hsaContrib - pretaxOther);
 
-  const totalSpend  = tx.reduce((s,t) => s+t.amount, 0);
+  // Apply category exclusion toggles
+  const filteredTx = tx.filter(t => {
+    if (savingsExcludeTaxes   && t.category === 'Taxes')    return false;
+    if (savingsExcludePersonal && t.category === 'Personal') return false;
+    return true;
+  });
+  const totalSpend  = filteredTx.reduce((s,t) => s+t.amount, 0);
+  const taxSpend    = tx.filter(t=>t.category==='Taxes').reduce((s,t)=>s+t.amount,0);
+  const personalSpend = tx.filter(t=>t.category==='Personal').reduce((s,t)=>s+t.amount,0);
 
   // Merrill income from imported CSV (dividends + interest from Louis' CMA only)
   const merrillImported = inc.filter(t => t.source === 'Merrill').reduce((s,t) => s+t.amount, 0);
@@ -3790,7 +3822,7 @@ function calcSavings() {
 
   // Monthly breakdown
   const months = {};
-  tx.forEach(t => {
+  filteredTx.forEach(t => {
     const key = t.year+'-'+t.month;
     if (!months[key]) months[key] = { spending:0, income:0 };
     months[key].spending += t.amount;
@@ -3803,7 +3835,7 @@ function calcSavings() {
 
   // Category breakdown
   const cats = {};
-  tx.forEach(t => { cats[t.category] = (cats[t.category]||0) + t.amount; });
+  filteredTx.forEach(t => { cats[t.category] = (cats[t.category]||0) + t.amount; });
   const topCats = Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,6);
 
   const hasData = tx.length > 0 || inc.length > 0;
@@ -3871,6 +3903,7 @@ function calcSavings() {
     <div style="background:var(--surface2);border-radius:10px;padding:12px;font-size:0.78rem;color:var(--text-dim);">
       At this savings rate, you are adding <strong style="color:var(--green);">${fmt(Math.max(netSavings,0),true)}</strong> per ${periodLabel==='All Time'?'period':'year'} to your wealth.
       ${totalIncome>0?'Your portfolio generates <strong style="color:var(--green);">' + fmt(154378,true) + '/yr</strong> in dividends — far exceeding your savings contributions.':''}
+      ${savingsExcludeTaxes||savingsExcludePersonal?'<div style="margin-top:6px;font-size:0.72rem;color:var(--text-muted);">Excluded: '+(savingsExcludeTaxes?'Taxes '+fmt(taxSpend,true):'')+(savingsExcludeTaxes&&savingsExcludePersonal?' · ':'')+(savingsExcludePersonal?'Personal '+fmt(personalSpend,true):'')+'</div>':''}
     </div>`;
 
   // Monthly chart
