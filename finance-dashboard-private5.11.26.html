@@ -3480,19 +3480,48 @@ function setSavingsPeriod(period, btn) {
 
 // Category keywords for auto-classification
 const SPENDING_CATS = {
-  Housing:   ['rent','mortgage','hoa','property tax','insurance','utilities','electric','gas','water','comcast','att','verizon'],
-  Food:      ['restaurant','food','grocery','grubhub','doordash','ubereats','starbucks','mcdonalds','chipotle','whole foods','trader joe','jewel'],
-  Transport: ['uber','lyft','gas station','parking','cta','metra','transit','auto','car wash','shell','bp','citgo'],
-  Healthcare:['pharmacy','cvs','walgreens','doctor','dental','vision','hospital','medical','health'],
-  Shopping:  ['amazon','target','walmart','costco','best buy','apple','nordstrom','macy'],
-  Travel:    ['airline','hotel','airbnb','expedia','booking','delta','united','marriott'],
-  Entertainment:['netflix','spotify','hulu','movie','theater','concert','ticketmaster'],
+  // Exclude these from spending entirely
+  _exclude: ['barclaycard','creditcard','acct_xfer','online transfer','zelle payment to felicia','quickpay_credit','deposit','direct dep','payroll','salary','irs usataxpymt','usataxpymt'],
+  // Tax payments — separate category
+  Taxes:     ['irs','usataxpymt','il dept','state tax','estimated tax','us treasury irs'],
+  // Housing & Utilities
+  Housing:   ['peoples gas','comed','nicor','peoples energy','rent','mortgage','hoa','insurance','at&t','comcast','xfinity','verizon','t-mobile','sprint','autopay','field school','tuition','facts'],
+  // Food & Dining
+  Food:      ['restaurant','grubhub','doordash','ubereats','starbucks','mcdonalds','chipotle','whole foods','trader joe','jewel','mariano','dominick','food','dining','cafe','pizza','sushi','taco','burger','panda','subway','dunkin','panera','chick-fil','wendy','popeye'],
+  // Transport & Auto
+  Transport: ['uber','lyft','parking','park chicago','cta','metra','transit','auto','car wash','shell','bp','citgo','speedway','marathon','gas','tesla'],
+  // Healthcare & Pets
+  Healthcare:['pharmacy','cvs','walgreens','rite aid','doctor','dental','vision','hospital','medical','health','chewy','petco','petsmart','vet'],
+  // Shopping
+  Shopping:  ['amazon','amzn','target','walmart','costco','best buy','apple','nordstrom','macy','tj maxx','ross','marshalls','kohls','home depot','lowes','ikea','wayfair'],
+  // Travel & Entertainment
+  Travel:    ['airline','hotel','airbnb','expedia','booking','delta','united','american air','marriott','hilton','hyatt','southwest'],
+  Entertainment:['netflix','spotify','hulu','movie','theater','concert','ticketmaster','amc','apple tv','disney','youtube','audible'],
+  // Personal & Family transfers (Zelle/CashApp to individuals)
+  Personal:  ['zelle payment to','cash app*','venmo','paypal'],
+  // Subscriptions
+  Subscriptions:['lincoln nationa','insurance','premium','annual fee','membership','subscribe'],
   Other:     [],
 };
 
-function classifyTransaction(desc) {
+// Transactions to exclude from spending analysis entirely
+function shouldExcludeTransaction(desc, type) {
+  const lower = (desc||'').toLowerCase();
+  const t = (type||'').toLowerCase();
+  // Skip credit card payments (already counted when charged to card)
+  if (lower.includes('barclaycard') && t.includes('ach')) return true;
+  // Skip account transfers between own accounts
+  if (t === 'acct_xfer' || lower.includes('online transfer') || lower.includes('zelle payment to felicia')) return true;
+  // Skip credits/deposits
+  if (t.includes('credit') || t.includes('deposit') || t.includes('dda_credit')) return true;
+  return false;
+}
+
+function classifyTransaction(desc, type) {
+  if (shouldExcludeTransaction(desc, type)) return '_exclude';
   const lower = (desc || '').toLowerCase();
   for (const [cat, keywords] of Object.entries(SPENDING_CATS)) {
+    if (cat === '_exclude' || cat === 'Other') continue;
     if (keywords.some(k => lower.includes(k))) return cat;
   }
   return 'Other';
@@ -3520,13 +3549,16 @@ function parseChaseCSV(rows, source) {
     const month = parts[0] ? parts[0].padStart(2,'0') : '';
     const date  = year + '-' + month + '-' + (parts[1]||'').padStart(2,'0');
 
+    const txType = row[header.findIndex(h=>h.includes('type'))] || '';
     if (amt < 0) {
-      // Debit/spending
-      transactions.push({ date, amount: Math.abs(amt), description: desc,
-        category: classifyTransaction(desc), source, year, month });
+      const cat = classifyTransaction(desc, txType);
+      if (cat !== '_exclude') {
+        transactions.push({ date, amount: Math.abs(amt), description: desc,
+          category: cat, source, year, month });
+      }
     } else if (amt > 0) {
-      // Credit/income (payroll, transfers in)
-      const isIncome = /payroll|direct dep|salary|zelle|venmo|transfer in/i.test(desc);
+      // Income: direct deposits, payroll, Zelle received, check deposits
+      const isIncome = /payroll|direct dep|salary|zelle payment from|deposit|transfer from|dda_credit/i.test(desc+txType);
       if (isIncome) income.push({ date, amount: amt, description: desc, source, year, month });
     }
   }
@@ -3561,6 +3593,90 @@ function parseBarclayCSV(rows, source) {
   return { transactions, income: [] };
 }
 
+// Parse Merrill Lynch transaction CSV for income
+function parseMerrillCSV(rows, source) {
+  const income = [];
+  const transactions = [];
+
+  // Find header row
+  let headerIdx = 0;
+  for (let i = 0; i < Math.min(rows.length, 5); i++) {
+    if (rows[i] && rows[i].some(c => (c||'').toLowerCase().includes('trade date'))) {
+      headerIdx = i; break;
+    }
+  }
+  const header = (rows[headerIdx]||[]).map(h => (h||'').toLowerCase().trim());
+  const dateCol = header.findIndex(h => h.includes('trade date'));
+  const acctCol = header.findIndex(h => h.includes('account'));
+  const descCol = header.findIndex(h => h.includes('description'));
+  const amtCol  = header.findIndex(h => h.includes('amount'));
+  const symCol  = header.findIndex(h => h.includes('symbol'));
+
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.every(c => !c)) continue;
+
+    const acct = (row[acctCol] || '').trim();
+    const desc = (row[descCol] || '').trim();
+    const amtRaw = (row[amtCol] || '').replace(/[$,()]/g, '').trim();
+    const dateStr = (row[dateCol] || '').trim();
+    const sym  = (row[symCol] || '').trim();
+
+    // Only count Louis' CMA account — skip kids' GST accounts
+    if (!acct.includes('628-38099') && !acct.toLowerCase().includes("louis")) continue;
+
+    // Parse amount — parentheses = negative
+    const isNeg = (row[amtCol]||'').includes('(');
+    const amt = parseFloat(amtRaw) * (isNeg ? -1 : 1);
+    if (isNaN(amt) || amt === 0) continue;
+
+    // Parse date
+    const parts = dateStr.split('/');
+    if (parts.length < 3) continue;
+    const year  = parts[2].length === 2 ? '20'+parts[2] : parts[2];
+    const month = parts[0].padStart(2,'0');
+    const date  = year + '-' + month + '-' + parts[1].padStart(2,'0');
+
+    const descLower = desc.toLowerCase();
+
+    // EXCLUDE: transfers to/from Chase, withdrawals, purchases
+    if (descLower.includes('withdrawal') ||
+        descLower.includes('funds transfer') ||
+        descLower.includes('jp morgan chase') ||
+        descLower.includes('purchase') ||
+        descLower.includes('bought') ||
+        descLower.includes('sold') ||
+        descLower.includes('reinvest')) continue;
+
+    // INCOME: Dividends (must have positive amount)
+    if (descLower.includes('dividend') && amt > 0) {
+      // Extract holding name for display
+      const holdingMatch = desc.match(/HOLDING\s+[\d,.]+/i);
+      const displayDesc = sym ? 'Dividend: ' + sym : desc.substring(0, 50);
+      income.push({ date, amount: amt, description: displayDesc,
+        source, year, month, category: 'Dividends' });
+      continue;
+    }
+
+    // INCOME: Bond interest payments
+    if ((descLower.includes('interest') || descLower.includes('coupon')) && amt > 0) {
+      income.push({ date, amount: amt, description: 'Interest: ' + desc.substring(0, 40),
+        source, year, month, category: 'Interest' });
+      continue;
+    }
+
+    // INCOME: Bank interest
+    if (descLower.includes('bank interest') && amt > 0) {
+      income.push({ date, amount: amt, description: 'Bank Interest',
+        source, year, month, category: 'Interest' });
+      continue;
+    }
+  }
+
+  log('Merrill: ' + income.length + ' income entries parsed');
+  return { transactions, income };
+}
+
 // Called from Import tab when Chase/Barclaycard CSV is parsed
 function processSavingsImport(rows, instId) {
   let parsed;
@@ -3568,6 +3684,8 @@ function processSavingsImport(rows, instId) {
     parsed = parseChaseCSV(rows, 'Chase');
   } else if (instId === 'barclaycard') {
     parsed = parseBarclayCSV(rows, 'BarclayCard');
+  } else if (instId === 'merrill') {
+    parsed = parseMerrillCSV(rows, 'Merrill');
   } else return;
 
   // Merge — avoid duplicates by date+amount+desc
@@ -3607,7 +3725,13 @@ function calcSavings() {
 
   const totalSpend  = tx.reduce((s,t) => s+t.amount, 0);
   const stmtIncome  = inc.reduce((s,t) => s+t.amount, 0);
-  const totalIncome = manualIncome > 0 ? manualIncome + employerMatch : stmtIncome + employerMatch;
+  // Use actual Merrill income from imported CSV if available
+  // otherwise fall back to hardcoded $154K annual estimate
+  const merrillImported = inc.filter(t => t.source === 'Merrill').reduce((s,t) => s+t.amount, 0);
+  const fallbackMerrill = merrillImported > 0 ? 0 : (filterYear === 'all' ? 154378 : filterYear === '2025' ? 154378 : 154378/12*4);
+  const totalIncome = manualIncome > 0
+    ? manualIncome + employerMatch
+    : stmtIncome + merrillImported + fallbackMerrill + employerMatch;
   const netSavings  = totalIncome - totalSpend;
   const savingsRate = totalIncome > 0 ? (netSavings/totalIncome*100) : 0;
 
@@ -5241,8 +5365,8 @@ function parseCSV(file) {
   Papa.parse(file, {
     complete: (results) => {
       log('Parsed ' + results.data.length + ' rows from CSV');
-      // Auto-process savings data for Chase and BarclayCard
-      if (importState.inst === 'chase' || importState.inst === 'barclaycard') {
+      // Auto-process savings data for Chase, BarclayCard and Merrill
+      if (['chase','barclaycard','merrill'].includes(importState.inst)) {
         processSavingsImport(results.data, importState.inst);
       }
       if (importType === 'holdings') {
