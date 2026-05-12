@@ -1222,7 +1222,19 @@
     <div style="height:180px;margin-top:14px;"><canvas id="savingsChart"></canvas></div>
   </div>
 
-  <!-- Insurance & Estate Checklist -->
+  <!-- Category Drilldown Modal -->
+<div id="cat-drilldown-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:500;overflow-y:auto;">
+  <div style="background:var(--surface);border-radius:20px 20px 0 0;margin-top:60px;padding:20px;min-height:calc(100vh - 60px);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3 id="drilldown-title" style="font-family:'Playfair Display',serif;font-size:1.1rem;color:var(--gold-light);"></h3>
+      <button onclick="closeDrilldown()" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:6px 14px;color:var(--text-muted);font-size:0.8rem;cursor:pointer;">Close</button>
+    </div>
+    <div id="drilldown-summary" style="background:var(--surface2);border-radius:12px;padding:12px;margin-bottom:14px;font-size:0.78rem;"></div>
+    <div id="drilldown-list" style="max-height:60vh;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<!-- Insurance & Estate Checklist -->
   <div class="plan-card" style="margin-bottom:80px;">
     <div class="plan-card-header">
       <h3>Insurance & Estate Checklist</h3>
@@ -2764,8 +2776,144 @@ function calcESPP() {
 // ── SAVINGS ANALYZER ────────────────────────────────────────────
 
 
+// ── CATEGORY DRILLDOWN ───────────────────────────────────────────
+function showCategoryDrilldown(cat) {
+  const filterYear = savingsPeriod === 'all' ? null : savingsPeriod;
+  const txAll = savingsData.transactions;
+  const tx = filterYear ? txAll.filter(t => t.year === filterYear) : txAll;
+  const catTx = tx.filter(t => t.category === cat).sort((a,b) => b.amount - a.amount);
+
+  const modal = document.getElementById('cat-drilldown-modal');
+  const title = document.getElementById('drilldown-title');
+  const summary = document.getElementById('drilldown-summary');
+  const list = document.getElementById('drilldown-list');
+  if (!modal) return;
+
+  const total = catTx.reduce((s,t) => s+t.amount, 0);
+  const avg   = catTx.length ? total/catTx.length : 0;
+
+  title.textContent = cat + ' — ' + fmt(total);
+  summary.innerHTML = `
+    <div style="display:flex;gap:16px;flex-wrap:wrap;">
+      <div><span style="color:var(--text-muted);">Transactions</span> <strong style="font-family:'DM Mono',monospace;">${catTx.length}</strong></div>
+      <div><span style="color:var(--text-muted);">Total</span> <strong style="font-family:'DM Mono',monospace;color:var(--red);">${fmt(total)}</strong></div>
+      <div><span style="color:var(--text-muted);">Avg per transaction</span> <strong style="font-family:'DM Mono',monospace;">${fmt(avg)}</strong></div>
+    </div>`;
+
+  // Group by merchant for summary
+  const merchants = {};
+  catTx.forEach(t => {
+    const key = t.description.substring(0, 30);
+    if (!merchants[key]) merchants[key] = { count:0, total:0 };
+    merchants[key].count++;
+    merchants[key].total += t.amount;
+  });
+  const topMerchants = Object.entries(merchants).sort((a,b) => b[1].total - a[1].total).slice(0, 15);
+
+  list.innerHTML = `
+    <div style="margin-bottom:14px;">
+      <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Top Merchants</div>
+      ${topMerchants.map(([name, data]) => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
+          <div>
+            <div style="font-size:0.8rem;color:var(--text);">${name}</div>
+            <div style="font-size:0.68rem;color:var(--text-muted);">${data.count} transaction${data.count>1?'s':''}</div>
+          </div>
+          <div style="font-family:'DM Mono',monospace;font-size:0.82rem;color:var(--red);">${fmt(data.total)}</div>
+        </div>`).join('')}
+    </div>
+    <div>
+      <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">All Transactions</div>
+      ${catTx.map(t => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+          <div>
+            <div style="font-size:0.75rem;color:var(--text);">${t.description}</div>
+            <div style="font-size:0.65rem;color:var(--text-muted);">${t.date} · ${t.source}</div>
+          </div>
+          <div style="font-family:'DM Mono',monospace;font-size:0.78rem;color:var(--red);flex-shrink:0;margin-left:10px;">${fmt(t.amount)}</div>
+        </div>`).join('')}
+    </div>`;
+
+  modal.style.display = 'block';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeDrilldown() {
+  const modal = document.getElementById('cat-drilldown-modal');
+  if (modal) modal.style.display = 'none';
+  document.body.style.overflow = '';
+}
+
 // ── WELLNESS TAB ────────────────────────────────────────────────
 
+
+// ── CATEGORY DRILLDOWN ───────────────────────────────────────────
+function showCategoryDrilldown(cat) {
+  const filterYear = savingsPeriod === 'all' ? null : savingsPeriod;
+  const txAll = savingsData.transactions;
+  const tx = filterYear ? txAll.filter(t => t.year === filterYear) : txAll;
+  const catTx = tx.filter(t => t.category === cat).sort((a,b) => b.amount - a.amount);
+
+  const modal = document.getElementById('cat-drilldown-modal');
+  const title = document.getElementById('drilldown-title');
+  const summary = document.getElementById('drilldown-summary');
+  const list = document.getElementById('drilldown-list');
+  if (!modal) return;
+
+  const total = catTx.reduce((s,t) => s+t.amount, 0);
+  const avg   = catTx.length ? total/catTx.length : 0;
+
+  title.textContent = cat + ' — ' + fmt(total);
+  summary.innerHTML = `
+    <div style="display:flex;gap:16px;flex-wrap:wrap;">
+      <div><span style="color:var(--text-muted);">Transactions</span> <strong style="font-family:'DM Mono',monospace;">${catTx.length}</strong></div>
+      <div><span style="color:var(--text-muted);">Total</span> <strong style="font-family:'DM Mono',monospace;color:var(--red);">${fmt(total)}</strong></div>
+      <div><span style="color:var(--text-muted);">Avg per transaction</span> <strong style="font-family:'DM Mono',monospace;">${fmt(avg)}</strong></div>
+    </div>`;
+
+  // Group by merchant for summary
+  const merchants = {};
+  catTx.forEach(t => {
+    const key = t.description.substring(0, 30);
+    if (!merchants[key]) merchants[key] = { count:0, total:0 };
+    merchants[key].count++;
+    merchants[key].total += t.amount;
+  });
+  const topMerchants = Object.entries(merchants).sort((a,b) => b[1].total - a[1].total).slice(0, 15);
+
+  list.innerHTML = `
+    <div style="margin-bottom:14px;">
+      <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Top Merchants</div>
+      ${topMerchants.map(([name, data]) => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
+          <div>
+            <div style="font-size:0.8rem;color:var(--text);">${name}</div>
+            <div style="font-size:0.68rem;color:var(--text-muted);">${data.count} transaction${data.count>1?'s':''}</div>
+          </div>
+          <div style="font-family:'DM Mono',monospace;font-size:0.82rem;color:var(--red);">${fmt(data.total)}</div>
+        </div>`).join('')}
+    </div>
+    <div>
+      <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">All Transactions</div>
+      ${catTx.map(t => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+          <div>
+            <div style="font-size:0.75rem;color:var(--text);">${t.description}</div>
+            <div style="font-size:0.65rem;color:var(--text-muted);">${t.date} · ${t.source}</div>
+          </div>
+          <div style="font-family:'DM Mono',monospace;font-size:0.78rem;color:var(--red);flex-shrink:0;margin-left:10px;">${fmt(t.amount)}</div>
+        </div>`).join('')}
+    </div>`;
+
+  modal.style.display = 'block';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeDrilldown() {
+  const modal = document.getElementById('cat-drilldown-modal');
+  if (modal) modal.style.display = 'none';
+  document.body.style.overflow = '';
+}
 
 // ── WELLNESS TAB ──────────────────────────────────────────────────
 let wellnessInited = false;
@@ -3516,7 +3664,7 @@ const SPENDING_CATS = {
   // Taxes — IRS payments
   Taxes: ['irs','usataxpymt','il dept','state tax','estimated tax','us treasury irs'],
   // Housing & Utilities
-  Housing: ['peoples gas','comed','nicor','peoples energy','rent','mortgage','hoa','at&t','comcast','xfinity','verizon','t-mobile','sprint','autopay','field school','tuition','facts','lincoln nationa'],
+  Housing: ['peoples gas','comed','nicor','peoples energy','rent','mortgage','hoa','at&t','comcast','xfinity','verizon','t-mobile','sprint','autopay','field school','tuition','facts','lincoln nationa','ricardo torres'],
   // Food & Dining (restaurants + groceries)
   Food: ['tst*','grubhub','doordash','ubereats','starbucks','mcdonalds','chipotle','whole foods','trader joe','jewel','mariano','dominick','aldi','food','dining','cafe','pizza','sushi','taco','burger','panda','subway','dunkin','panera','chick-fil','wendy','popeye','olive garden','nicky','carry out','restaurant','diner','bistro','grill','bbq','thai','chinese','italian','mexican','sushi','ramen','bagel','deli','bakery','brunch','tavern','pub','bar ','cosi','potbelly','jimmy john','portillo','giordano','lou malnati','pequod','xoco','avec','girl & the goat','bavette'],
   // Transport & Auto
@@ -3903,11 +4051,12 @@ function calcSavings() {
       <div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Top Spending Categories</div>
       ${topCats.map(([cat,amt]) => {
         const pct = totalSpend>0?(amt/totalSpend*100).toFixed(0):0;
-        return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
+        return '<div onclick="showCategoryDrilldown(\''+cat+'\')" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer;padding:4px;border-radius:8px;transition:background 0.15s;" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">' +
           '<div style="font-size:0.75rem;color:var(--text-muted);width:90px;flex-shrink:0;">' + cat + '</div>' +
           '<div style="flex:1;background:var(--border);border-radius:3px;height:6px;"><div style="width:' + pct + '%;height:100%;background:var(--gold);border-radius:3px;"></div></div>' +
           '<div style="font-family:\'DM Mono\',monospace;font-size:0.72rem;color:var(--text);width:70px;text-align:right;">' + fmt(amt,true) + '</div>' +
           '<div style="font-size:0.68rem;color:var(--text-muted);width:30px;text-align:right;">' + pct + '%</div>' +
+          '<div style="font-size:0.65rem;color:var(--gold);flex-shrink:0;">›</div>' +
           '</div>';
       }).join('')}
     </div>` : ''}
@@ -3947,6 +4096,74 @@ function calcSavings() {
   }
 }
 
+
+// ── CATEGORY DRILLDOWN ───────────────────────────────────────────
+function showCategoryDrilldown(cat) {
+  const filterYear = savingsPeriod === 'all' ? null : savingsPeriod;
+  const txAll = savingsData.transactions;
+  const tx = filterYear ? txAll.filter(t => t.year === filterYear) : txAll;
+  const catTx = tx.filter(t => t.category === cat).sort((a,b) => b.amount - a.amount);
+
+  const modal = document.getElementById('cat-drilldown-modal');
+  const title = document.getElementById('drilldown-title');
+  const summary = document.getElementById('drilldown-summary');
+  const list = document.getElementById('drilldown-list');
+  if (!modal) return;
+
+  const total = catTx.reduce((s,t) => s+t.amount, 0);
+  const avg   = catTx.length ? total/catTx.length : 0;
+
+  title.textContent = cat + ' — ' + fmt(total);
+  summary.innerHTML = `
+    <div style="display:flex;gap:16px;flex-wrap:wrap;">
+      <div><span style="color:var(--text-muted);">Transactions</span> <strong style="font-family:'DM Mono',monospace;">${catTx.length}</strong></div>
+      <div><span style="color:var(--text-muted);">Total</span> <strong style="font-family:'DM Mono',monospace;color:var(--red);">${fmt(total)}</strong></div>
+      <div><span style="color:var(--text-muted);">Avg per transaction</span> <strong style="font-family:'DM Mono',monospace;">${fmt(avg)}</strong></div>
+    </div>`;
+
+  // Group by merchant for summary
+  const merchants = {};
+  catTx.forEach(t => {
+    const key = t.description.substring(0, 30);
+    if (!merchants[key]) merchants[key] = { count:0, total:0 };
+    merchants[key].count++;
+    merchants[key].total += t.amount;
+  });
+  const topMerchants = Object.entries(merchants).sort((a,b) => b[1].total - a[1].total).slice(0, 15);
+
+  list.innerHTML = `
+    <div style="margin-bottom:14px;">
+      <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Top Merchants</div>
+      ${topMerchants.map(([name, data]) => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
+          <div>
+            <div style="font-size:0.8rem;color:var(--text);">${name}</div>
+            <div style="font-size:0.68rem;color:var(--text-muted);">${data.count} transaction${data.count>1?'s':''}</div>
+          </div>
+          <div style="font-family:'DM Mono',monospace;font-size:0.82rem;color:var(--red);">${fmt(data.total)}</div>
+        </div>`).join('')}
+    </div>
+    <div>
+      <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">All Transactions</div>
+      ${catTx.map(t => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);">
+          <div>
+            <div style="font-size:0.75rem;color:var(--text);">${t.description}</div>
+            <div style="font-size:0.65rem;color:var(--text-muted);">${t.date} · ${t.source}</div>
+          </div>
+          <div style="font-family:'DM Mono',monospace;font-size:0.78rem;color:var(--red);flex-shrink:0;margin-left:10px;">${fmt(t.amount)}</div>
+        </div>`).join('')}
+    </div>`;
+
+  modal.style.display = 'block';
+  document.body.style.overflow = 'hidden';
+}
+
+function closeDrilldown() {
+  const modal = document.getElementById('cat-drilldown-modal');
+  if (modal) modal.style.display = 'none';
+  document.body.style.overflow = '';
+}
 
 // ── WELLNESS TAB ────────────────────────────────────────────────
 // ── TREND ANALYSIS TAB ────────────────────────────────────────────
