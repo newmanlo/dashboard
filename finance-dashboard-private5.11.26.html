@@ -2803,34 +2803,45 @@ function calcESPP() {
 
 // ── SPENDING SYNC — pulls real data from Savings Analyzer ───────
 // Returns annualized spending from imported transactions
-function getRealAnnualSpend(excludeTaxes=true, excludePersonal=false) {
+// Uses most recent 12 months for accuracy, excludes taxes AND personal by default
+function getRealAnnualSpend(excludeTaxes=true, excludePersonal=true) {
   const tx = savingsData.transactions;
   if (!tx || !tx.length) return null;
 
-  // Get date range of imported data
-  const dates = tx.map(t => t.date).sort();
-  const firstDate = new Date(dates[0]);
-  const lastDate  = new Date(dates[dates.length-1]);
+  // Use most recent 12 months of data to avoid partial-year distortion
+  const sorted = tx.map(t => t.date).sort();
+  const lastDate = new Date(sorted[sorted.length-1]);
+  const cutoff   = new Date(lastDate);
+  cutoff.setMonth(cutoff.getMonth() - 12);
+
+  const recentTx = tx.filter(t => new Date(t.date) >= cutoff);
+  const usedTx   = recentTx.length >= 50 ? recentTx : tx; // fallback to all if not enough data
+
+  // Get actual months covered
+  if (!usedTx.length) return null;
+  const usedDates = usedTx.map(t => t.date).sort();
+  const firstDate = new Date(usedDates[0]);
+  const endDate   = new Date(usedDates[usedDates.length-1]);
   const monthsCovered = Math.max(1,
-    (lastDate.getFullYear() - firstDate.getFullYear()) * 12 +
-    (lastDate.getMonth() - firstDate.getMonth()) + 1
+    (endDate.getFullYear() - firstDate.getFullYear()) * 12 +
+    (endDate.getMonth() - firstDate.getMonth()) + 1
   );
 
-  // Filter and sum
-  const filtered = tx.filter(t => {
-    if (excludeTaxes   && t.category === 'Taxes')    return false;
+  // Filter
+  const filtered = usedTx.filter(t => {
+    if (excludeTaxes    && t.category === 'Taxes')    return false;
     if (excludePersonal && t.category === 'Personal') return false;
     return true;
   });
   const totalSpend = filtered.reduce((s,t) => s+t.amount, 0);
 
-  // Annualize based on months of data
+  // Annualize
   const annualized = (totalSpend / monthsCovered) * 12;
   return Math.round(annualized);
 }
 
 // Returns real monthly spending
-function getRealMonthlySpend(excludeTaxes=true, excludePersonal=false) {
+function getRealMonthlySpend(excludeTaxes=true, excludePersonal=true) {
   const annual = getRealAnnualSpend(excludeTaxes, excludePersonal);
   return annual ? Math.round(annual / 12) : null;
 }
@@ -3588,34 +3599,45 @@ function calcESPP() {
 
 // ── SPENDING SYNC — pulls real data from Savings Analyzer ───────
 // Returns annualized spending from imported transactions
-function getRealAnnualSpend(excludeTaxes=true, excludePersonal=false) {
+// Uses most recent 12 months for accuracy, excludes taxes AND personal by default
+function getRealAnnualSpend(excludeTaxes=true, excludePersonal=true) {
   const tx = savingsData.transactions;
   if (!tx || !tx.length) return null;
 
-  // Get date range of imported data
-  const dates = tx.map(t => t.date).sort();
-  const firstDate = new Date(dates[0]);
-  const lastDate  = new Date(dates[dates.length-1]);
+  // Use most recent 12 months of data to avoid partial-year distortion
+  const sorted = tx.map(t => t.date).sort();
+  const lastDate = new Date(sorted[sorted.length-1]);
+  const cutoff   = new Date(lastDate);
+  cutoff.setMonth(cutoff.getMonth() - 12);
+
+  const recentTx = tx.filter(t => new Date(t.date) >= cutoff);
+  const usedTx   = recentTx.length >= 50 ? recentTx : tx; // fallback to all if not enough data
+
+  // Get actual months covered
+  if (!usedTx.length) return null;
+  const usedDates = usedTx.map(t => t.date).sort();
+  const firstDate = new Date(usedDates[0]);
+  const endDate   = new Date(usedDates[usedDates.length-1]);
   const monthsCovered = Math.max(1,
-    (lastDate.getFullYear() - firstDate.getFullYear()) * 12 +
-    (lastDate.getMonth() - firstDate.getMonth()) + 1
+    (endDate.getFullYear() - firstDate.getFullYear()) * 12 +
+    (endDate.getMonth() - firstDate.getMonth()) + 1
   );
 
-  // Filter and sum
-  const filtered = tx.filter(t => {
-    if (excludeTaxes   && t.category === 'Taxes')    return false;
+  // Filter
+  const filtered = usedTx.filter(t => {
+    if (excludeTaxes    && t.category === 'Taxes')    return false;
     if (excludePersonal && t.category === 'Personal') return false;
     return true;
   });
   const totalSpend = filtered.reduce((s,t) => s+t.amount, 0);
 
-  // Annualize based on months of data
+  // Annualize
   const annualized = (totalSpend / monthsCovered) * 12;
   return Math.round(annualized);
 }
 
 // Returns real monthly spending
-function getRealMonthlySpend(excludeTaxes=true, excludePersonal=false) {
+function getRealMonthlySpend(excludeTaxes=true, excludePersonal=true) {
   const annual = getRealAnnualSpend(excludeTaxes, excludePersonal);
   return annual ? Math.round(annual / 12) : null;
 }
@@ -3803,34 +3825,45 @@ function calcESPP() {
 
 // ── SPENDING SYNC — pulls real data from Savings Analyzer ───────
 // Returns annualized spending from imported transactions
-function getRealAnnualSpend(excludeTaxes=true, excludePersonal=false) {
+// Uses most recent 12 months for accuracy, excludes taxes AND personal by default
+function getRealAnnualSpend(excludeTaxes=true, excludePersonal=true) {
   const tx = savingsData.transactions;
   if (!tx || !tx.length) return null;
 
-  // Get date range of imported data
-  const dates = tx.map(t => t.date).sort();
-  const firstDate = new Date(dates[0]);
-  const lastDate  = new Date(dates[dates.length-1]);
+  // Use most recent 12 months of data to avoid partial-year distortion
+  const sorted = tx.map(t => t.date).sort();
+  const lastDate = new Date(sorted[sorted.length-1]);
+  const cutoff   = new Date(lastDate);
+  cutoff.setMonth(cutoff.getMonth() - 12);
+
+  const recentTx = tx.filter(t => new Date(t.date) >= cutoff);
+  const usedTx   = recentTx.length >= 50 ? recentTx : tx; // fallback to all if not enough data
+
+  // Get actual months covered
+  if (!usedTx.length) return null;
+  const usedDates = usedTx.map(t => t.date).sort();
+  const firstDate = new Date(usedDates[0]);
+  const endDate   = new Date(usedDates[usedDates.length-1]);
   const monthsCovered = Math.max(1,
-    (lastDate.getFullYear() - firstDate.getFullYear()) * 12 +
-    (lastDate.getMonth() - firstDate.getMonth()) + 1
+    (endDate.getFullYear() - firstDate.getFullYear()) * 12 +
+    (endDate.getMonth() - firstDate.getMonth()) + 1
   );
 
-  // Filter and sum
-  const filtered = tx.filter(t => {
-    if (excludeTaxes   && t.category === 'Taxes')    return false;
+  // Filter
+  const filtered = usedTx.filter(t => {
+    if (excludeTaxes    && t.category === 'Taxes')    return false;
     if (excludePersonal && t.category === 'Personal') return false;
     return true;
   });
   const totalSpend = filtered.reduce((s,t) => s+t.amount, 0);
 
-  // Annualize based on months of data
+  // Annualize
   const annualized = (totalSpend / monthsCovered) * 12;
   return Math.round(annualized);
 }
 
 // Returns real monthly spending
-function getRealMonthlySpend(excludeTaxes=true, excludePersonal=false) {
+function getRealMonthlySpend(excludeTaxes=true, excludePersonal=true) {
   const annual = getRealAnnualSpend(excludeTaxes, excludePersonal);
   return annual ? Math.round(annual / 12) : null;
 }
@@ -4711,10 +4744,32 @@ let legacyChartInst = null;
 let peaceInited = false;
 
 function initPeaceTab() {
-  // Populate real spending banner
+  // Populate real spending banner and update all Peace inputs
   const realSpend  = getRealAnnualSpend(true, false);
   const realMonthly= getRealMonthlySpend(true, false);
   const realIncome = getRealAnnualIncome();
+
+  // Update all Peace tab spending inputs with real data
+  if (realSpend) {
+    const peaceSpendEl = document.getElementById('peace-spend');
+    if (peaceSpendEl && (+peaceSpendEl.value === 80000 || !peaceSpendEl.value)) {
+      peaceSpendEl.value = realSpend;
+    }
+    const failSpendEl = document.getElementById('fail-spend');
+    if (failSpendEl && (+failSpendEl.value === 80000 || !failSpendEl.value)) {
+      failSpendEl.value = realSpend;
+    }
+    const sdSlider = document.getElementById('spenddown-slider');
+    if (sdSlider && +sdSlider.value === 80000) sdSlider.value = realSpend;
+    // Trigger gauge recalculation
+    setTimeout(() => {
+      if (typeof drawGauge === 'function') drawGauge();
+      if (typeof updateAllPeace === 'function') updateAllPeace();
+      if (typeof calcSpendDown === 'function') calcSpendDown();
+      if (typeof calcFailScenarios === 'function') calcFailScenarios();
+    }, 100);
+  }
+
   const banner = document.getElementById('peace-spending-banner');
   const grid   = document.getElementById('peace-spending-grid');
   const note   = document.getElementById('peace-spending-note');
@@ -4732,7 +4787,7 @@ function initPeaceTab() {
       <div style="font-size:0.6rem;color:var(--text-muted);text-transform:uppercase;">${s.label}</div>
       <div style="font-family:'DM Mono',monospace;font-size:0.85rem;color:${s.color};margin-top:3px;">${s.val}</div>
     </div>`).join('');
-    if (note) note.textContent = 'Top spending: ' + topCat.map(([c,v])=>c+' '+fmt(v,true)).join(' · ');
+    if (note) note.textContent = 'Top spending: ' + topCat.map(([c,v])=>c+' '+fmt(v,true)).join(' · ') + ' · Excludes taxes & personal transfers';
   }
   updateAllPeace();
   calcSpendDown();
