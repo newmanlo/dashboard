@@ -1224,28 +1224,34 @@
   </div>
 
   <!-- Category Drilldown Modal -->
-<div id="cat-drilldown-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:500;overflow-y:auto;">
-  <div style="background:var(--surface);border-radius:20px 20px 0 0;margin-top:60px;padding:20px;min-height:calc(100vh - 60px);">
+<div id="cat-drilldown-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:500;overflow-y:auto;">
+  <div style="background:var(--surface);border-radius:20px 20px 0 0;margin-top:60px;padding:20px 20px 120px;min-height:calc(100vh - 60px);">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
       <h3 id="drilldown-title" style="font-family:'Playfair Display',serif;font-size:1.1rem;color:var(--gold-light);"></h3>
       <button onclick="closeDrilldown()" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:6px 14px;color:var(--text-muted);font-size:0.8rem;cursor:pointer;">Close</button>
     </div>
+    <!-- Re-classify button -->
+    <div id="reclassify-bar" style="display:none;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.3);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:0.75rem;color:var(--gold-light);">Updated categories won't apply to already-imported transactions unless you re-classify.</span>
+      <button onclick="doReclassify()" style="flex-shrink:0;margin-left:12px;background:var(--gold);border:none;border-radius:8px;padding:5px 12px;color:#0a0c0f;font-size:0.72rem;font-weight:600;cursor:pointer;">Re-classify All</button>
+    </div>
     <div id="drilldown-summary" style="background:var(--surface2);border-radius:12px;padding:12px;margin-bottom:14px;font-size:0.78rem;"></div>
-    <div id="drilldown-list" style="max-height:60vh;overflow-y:auto;"></div>
-    <!-- Learned rules for this category (inserted dynamically) -->
+    <div id="drilldown-list"></div>
   </div>
 
-  <!-- Move/Recategorize Picker — slides up from bottom of drilldown -->
-  <div id="cat-move-picker" style="display:none;position:sticky;bottom:0;left:0;width:100%;background:var(--surface);border-top:2px solid var(--gold);padding:16px;border-radius:0 0 20px 20px;box-shadow:0 -8px 32px rgba(0,0,0,0.5);">
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
-      <div>
-        <div style="font-size:0.68rem;color:var(--gold-light);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Move to category:</div>
-        <div id="move-desc-label" style="font-size:0.78rem;color:var(--text);max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+  <!-- Move/Recategorize Picker — fixed to bottom of viewport -->
+  <div id="cat-move-picker" style="display:none;position:fixed;bottom:0;left:0;width:100%;background:var(--surface);border-top:2px solid var(--gold);padding:16px;box-shadow:0 -8px 32px rgba(0,0,0,0.6);z-index:600;">
+    <div style="max-width:480px;margin:0 auto;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+        <div>
+          <div style="font-size:0.68rem;color:var(--gold-light);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Move to category:</div>
+          <div id="move-desc-label" style="font-size:0.78rem;color:var(--text);max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+        </div>
+        <button onclick="closeMover()" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:5px 12px;color:var(--text-muted);font-size:0.75rem;cursor:pointer;flex-shrink:0;margin-left:8px;">✕</button>
       </div>
-      <button onclick="closeMover()" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:5px 12px;color:var(--text-muted);font-size:0.75rem;cursor:pointer;flex-shrink:0;margin-left:8px;">✕</button>
+      <div id="move-cat-chips" style="display:flex;flex-wrap:wrap;gap:7px;"></div>
+      <div id="move-feedback" style="display:none;margin-top:10px;padding:10px;background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.3);border-radius:10px;font-size:0.78rem;text-align:center;color:var(--green);"></div>
     </div>
-    <div id="move-cat-chips" style="display:flex;flex-wrap:wrap;gap:7px;"></div>
-    <div id="move-feedback" style="display:none;margin-top:10px;padding:10px;background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.3);border-radius:10px;font-size:0.78rem;text-align:center;color:var(--green);"></div>
   </div>
 </div>
 
@@ -3862,6 +3868,21 @@ function applyLearnedRulesToAll() {
   return changed;
 }
 
+// Re-run the built-in keyword classifier on every stored transaction.
+// Learned rules still take priority. Call this after editing SPENDING_CATS.
+function reclassifyAllTransactions() {
+  let changed = 0;
+  savingsData.transactions.forEach(t => {
+    const newCat = classifyTransaction(t.description, t.type || '', t.amount);
+    if (newCat !== '_exclude' && newCat !== t.category) {
+      t.category = newCat;
+      changed++;
+    }
+  });
+  if (changed) saveSavingsData();
+  return changed;
+}
+
 function extractRuleKeyword(desc) {
   return desc.toLowerCase()
     .replace(/[#*@]/g, '').replace(/\d+/g, '')
@@ -3946,6 +3967,7 @@ function setSavingsPeriod(period, btn) {
 // ── CATEGORY COLOUR PALETTE ──────────────────────────────────────
 const CAT_COLORS = {
   Housing:       '#c9a84c',
+  Utilities:     '#22d3ee',
   Food:          '#60a5fa',
   Transport:     '#4ade80',
   Healthcare:    '#a78bfa',
@@ -3961,11 +3983,17 @@ const CAT_COLORS = {
 };
 
 // Category keywords for auto-classification
+// ORDER MATTERS — first match wins. Personal must be before Housing to
+// prevent "Zelle payment to RICARDO TORRE" from matching Housing's 'ricardo torres'.
 const SPENDING_CATS = {
   // Taxes — IRS payments
   Taxes: ['irs','usataxpymt','il dept','state tax','estimated tax','us treasury irs'],
-  // Housing & Utilities
-  Housing: ['peoples gas','comed','nicor','peoples energy','rent','mortgage','hoa','at&t','att bill','comcast','xfinity','verizon','t-mobile','sprint','autopay','ricardo torres','west pacific storage','storage'],
+  // Personal transfers — checked early so Zelle/Venmo names don't bleed into other cats
+  Personal: ['zelle payment to','cash app*','venmo','paypal','pp*','atm withdrawal','atm cash'],
+  // Housing — rent/mortgage/HOA only (utilities split out below)
+  Housing: ['rent','mortgage','hoa','ricardo torres','west pacific storage','storage'],
+  // Utilities — gas, electric, internet, phone
+  Utilities: ['peoples gas','comed','nicor','peoples energy','at&t','att bill','comcast','xfinity','verizon','t-mobile','sprint','autopay'],
   // Food & Dining (restaurants + groceries)
   Food: ['tst*','grubhub','doordash','ubereats','starbucks','mcdonalds','chipotle','whole foods','trader joe','jewel','mariano','dominick','aldi','food','dining','cafe','pizza','sushi','taco','burger','panda','subway','dunkin','panera','chick-fil','wendy','popeye','olive garden','nicky','carry out','restaurant','diner','bistro','grill','bbq','thai','chinese','italian','mexican','ramen','bagel','deli','bakery','brunch','tavern','pub','bar ','cosi','potbelly','jimmy john','portillo','giordano','lou malnati','pequod','xoco','avec','girl & the goat','bavette','panchos','pistola'],
   // Transport & Auto
@@ -3976,16 +4004,14 @@ const SPENDING_CATS = {
   Insurance: ['insurance','allstate','state farm','geico','progressive','nationwide','farmers','liberty mutual','travelers','cigna','aetna','bcbs','blue cross','blue shield','unitedhealthcare','humana','principal life','lincoln nationa','aflac','mutual of omaha','hartford','guardian','metlife','prudential','renters ins','auto ins','life ins','health ins','premium payment'],
   // Pets — Eli
   Pets: ['chewy','petco','petsmart','vet','animal hospital','pulaski animal','brighton park animal','scout - west loop','scout west loop','rover','pet sit','dog','puppy'],
-  // Education & Tuition — music lessons, school, tutoring
-  Education: ['mckinley park music','music school','music lesson','tutor','kumon','learning','school supply','field school','tuition','facts','coursera','udemy','masterclass','skillshare'],
+  // Education & Tuition — field school, music lessons, tutoring
+  Education: ['field school','facts','tuition','mckinley park music','music school','music lesson','tutor','kumon','learning','school supply','coursera','udemy','masterclass','skillshare'],
   // Shopping
   Shopping: ['amazon reta','amazon mark','amazon','amzn','target','walmart','costco','best buy','apple','nordstrom','macy','tj maxx','ross','marshalls','kohls','home depot','lowes','ikea','wayfair','shein','zara','h&m','gap','old navy','banana republic','express','forever 21','fashion nova','asos','ebay','etsy'],
   // Travel
   Travel: ['airline','hotel','airbnb','expedia','booking','delta','united','american air','marriott','hilton','hyatt','southwest','spirit','frontier','vrbo','trip','travel credit'],
   // Entertainment
   Entertainment: ['netflix','spotify','hulu','disney','hbomax','max.com','apple tv','youtube','audible','movie','theater','concert','ticketmaster','amc','paramount','peacock','sling','discovery','onlyfans','google *','reggies','reggie'],
-  // Personal transfers
-  Personal: ['zelle payment to','cash app*','venmo','paypal','pp*','atm withdrawal','atm cash'],
   Other: [],
 };
 
@@ -4416,18 +4442,23 @@ function showCategoryDrilldown(cat) {
   const filterYear = savingsPeriod === 'all' ? null : savingsPeriod;
   const txAll = savingsData.transactions;
   const tx = filterYear ? txAll.filter(t => t.year === filterYear) : txAll;
-  const catTx = tx.filter(t => t.category === cat).sort((a,b) => b.amount - a.amount);
+  const catTx = tx.filter(t => t.category === cat).sort((a,b) => new Date(b.date) - new Date(a.date));
 
   const modal = document.getElementById('cat-drilldown-modal');
   const title = document.getElementById('drilldown-title');
   const summary = document.getElementById('drilldown-summary');
   const list = document.getElementById('drilldown-list');
+  const reclassBar = document.getElementById('reclassify-bar');
   if (!modal) return;
 
   const total = catTx.reduce((s,t) => s+t.amount, 0);
   const avg   = catTx.length ? total/catTx.length : 0;
 
   title.textContent = cat + ' — ' + fmt(total);
+
+  // Show reclassify bar (always useful for fixing past imports)
+  if (reclassBar) reclassBar.style.display = 'flex';
+
   summary.innerHTML = `
     <div style="display:flex;gap:16px;flex-wrap:wrap;">
       <div><span style="color:var(--text-muted);">Transactions</span> <strong style="font-family:'DM Mono',monospace;">${catTx.length}</strong></div>
@@ -4461,44 +4492,48 @@ function showCategoryDrilldown(cat) {
   });
   const topMerchants = Object.entries(merchants).sort((a,b) => b[1].total - a[1].total).slice(0, 15);
 
+  const catColor = CAT_COLORS[cat] || '#9ca3af';
+
   list.innerHTML = rulesHTML + `
-    <div style="margin-bottom:14px;">
+    <div style="margin-bottom:20px;">
       <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Top Merchants</div>
       ${topMerchants.map(([name, data]) => `
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);">
-          <div>
-            <div style="font-size:0.8rem;color:var(--text);">${name}</div>
-            <div style="font-size:0.68rem;color:var(--text-muted);">${data.count} transaction${data.count>1?'s':''}</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
+          <div style="min-width:0;flex:1;">
+            <div style="font-size:0.82rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
+            <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">${data.count} transaction${data.count>1?'s':''}</div>
           </div>
-          <div style="font-family:'DM Mono',monospace;font-size:0.82rem;color:var(--red);">${fmt(data.total)}</div>
+          <div style="font-family:'DM Mono',monospace;font-size:0.85rem;color:${catColor};flex-shrink:0;margin-left:12px;">${fmt(data.total)}</div>
         </div>`).join('')}
     </div>
     <div>
       <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">
         All Transactions
-        <span style="font-size:0.62rem;color:var(--text-muted);text-transform:none;margin-left:4px;">— tap Move › to recategorize & teach</span>
+        <span style="font-size:0.62rem;color:var(--gold);text-transform:none;margin-left:4px;">— tap Move › to recategorize &amp; teach</span>
       </div>
-      ${catTx.map(t => {
-        const kw = extractRuleKeyword(t.description);
-        const kwSafe = kw.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        const descSafe = t.description.substring(0,45).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-        return `<div style="padding:7px 0 9px;border-bottom:1px solid var(--border);">
-          <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;">
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:0.75rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.description}</div>
-              <div style="font-size:0.63rem;color:var(--text-muted);margin-top:2px;">${t.date} · ${t.source}</div>
+      ${catTx.length === 0 ? '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:0.8rem;">No transactions in this category for the selected period.</div>' :
+        catTx.map(t => {
+          const kw = extractRuleKeyword(t.description);
+          const kwSafe = kw.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+          const descSafe = t.description.substring(0,45).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+          return `<div style="padding:8px 0 10px;border-bottom:1px solid var(--border);">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:0.78rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.description}</div>
+                <div style="font-size:0.65rem;color:var(--text-muted);margin-top:2px;">${t.date} · ${t.source}</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+                <div style="font-family:'DM Mono',monospace;font-size:0.8rem;color:${catColor};">${fmt(t.amount)}</div>
+                <button onclick="openMove('${kwSafe}','${cat}','${descSafe}')"
+                  style="background:var(--gold-dim);border:1px solid var(--gold);border-radius:8px;padding:4px 10px;color:var(--gold-light);font-size:0.68rem;font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0;">Move ›</button>
+              </div>
             </div>
-            <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-top:1px;">
-              <div style="font-family:'DM Mono',monospace;font-size:0.78rem;color:var(--red);">${fmt(t.amount)}</div>
-              <button onclick="openMove('${kwSafe}','${cat}','${descSafe}')"
-                style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:3px 9px;color:var(--text-muted);font-size:0.65rem;cursor:pointer;white-space:nowrap;">Move ›</button>
-            </div>
-          </div>
-        </div>`;
-      }).join('')}
+          </div>`;
+        }).join('')}
     </div>`;
 
   modal.style.display = 'block';
+  modal.scrollTop = 0;
   document.body.style.overflow = 'hidden';
 }
 
@@ -4507,6 +4542,23 @@ function closeDrilldown() {
   const modal = document.getElementById('cat-drilldown-modal');
   if (modal) modal.style.display = 'none';
   document.body.style.overflow = '';
+}
+
+function doReclassify() {
+  const btn = document.querySelector('#reclassify-bar button');
+  if (btn) { btn.textContent = 'Working…'; btn.disabled = true; }
+  const changed = reclassifyAllTransactions();
+  calcSavings();
+  refreshSpendChart();
+  const bar = document.getElementById('reclassify-bar');
+  if (bar) {
+    bar.innerHTML = `<span style="font-size:0.75rem;color:var(--green);">✓ Done — ${changed} transaction${changed!==1?'s':''} updated.</span>`;
+    setTimeout(() => { bar.style.display = 'none'; }, 3000);
+  }
+  // Re-open the same category so the list refreshes
+  const title = document.getElementById('drilldown-title');
+  const cat = title ? title.textContent.split(' — ')[0] : null;
+  if (cat) setTimeout(() => showCategoryDrilldown(cat), 200);
 }
 
 // ── WELLNESS TAB ────────────────────────────────────────────────
