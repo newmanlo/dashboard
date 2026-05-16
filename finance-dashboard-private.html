@@ -373,6 +373,21 @@
   @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
   .tab-view.active { animation: fadeIn 0.3s ease; }
 
+  /* Cloud Sync styles */
+  .sync-bar {
+    position: fixed; top: 0; left: 50%; transform: translateX(-50%);
+    width: 100%; max-width: 480px; z-index: 200;
+    background: rgba(17,19,24,0.97); border-bottom: 1px solid var(--border);
+    padding: 8px 16px; display: flex; align-items: center; justify-content: space-between;
+    font-size: 0.72rem; transition: transform 0.3s; transform: translateX(-50%) translateY(-100%);
+  }
+  .sync-bar.visible { transform: translateX(-50%) translateY(0); }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; flex-shrink: 0; }
+  .sync-ok   { background: var(--green); }
+  .sync-busy { background: var(--gold-light); animation: pulse 1s infinite; }
+  .sync-err  { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
   /* Planning tab styles */
   .plan-card { margin: 0 20px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
   .plan-card h3 { font-family: 'Playfair Display', serif; font-size: 0.95rem; color: var(--text); }
@@ -502,6 +517,21 @@
   .h-meta span { color: var(--text-dim); font-family: 'DM Mono', monospace; }
   .gl-bar-wrap { height: 3px; background: var(--border); border-radius: 2px; margin-top: 8px; }
   .gl-bar { height: 100%; border-radius: 2px; transition: width 0.4s; }
+
+  /* Cloud Sync styles */
+  .sync-bar {
+    position: fixed; top: 0; left: 50%; transform: translateX(-50%);
+    width: 100%; max-width: 480px; z-index: 200;
+    background: rgba(17,19,24,0.97); border-bottom: 1px solid var(--border);
+    padding: 8px 16px; display: flex; align-items: center; justify-content: space-between;
+    font-size: 0.72rem; transition: transform 0.3s; transform: translateX(-50%) translateY(-100%);
+  }
+  .sync-bar.visible { transform: translateX(-50%) translateY(0); }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; flex-shrink: 0; }
+  .sync-ok   { background: var(--green); }
+  .sync-busy { background: var(--gold-light); animation: pulse 1s infinite; }
+  .sync-err  { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
   /* Planning tab styles */
   .plan-card { margin: 0 20px 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
@@ -674,6 +704,15 @@
 </head>
 <body>
 <div class="app">
+  <!-- Cloud Sync Status Bar -->
+  <div class="sync-bar" id="sync-bar">
+    <div style="display:flex;align-items:center;">
+      <div class="sync-dot sync-ok" id="sync-dot"></div>
+      <span id="sync-msg">Synced</span>
+    </div>
+    <span id="sync-time" style="color:var(--text-muted);"></span>
+  </div>
+
   <div class="header">
     <div class="header-left">
       <h1>Wealth Overview</h1>
@@ -723,6 +762,7 @@
   <div class="tab-view" id="tab-spending">
     <div class="chart-card" style="margin-top:0;">
       <h3>Spending by Category</h3>
+      <div id="spend-chart-hint" style="font-size:0.72rem;color:var(--gold);margin-bottom:8px;">Import statements to see your real spending</div>
       <div class="chart-wrap"><canvas id="spendChart"></canvas></div>
     </div>
     <div class="chart-card">
@@ -945,8 +985,48 @@
   <div class="import-card">
     <h3>Import History</h3>
     <div class="history-list" id="history-list"><p style="font-size:0.8rem;color:var(--text-muted);">No imports yet.</p></div>
-    <button onclick="clearCache()" style="margin-top:14px;width:100%;padding:10px;background:transparent;border:1px solid var(--border);border-radius:10px;color:var(--text-muted);font-size:0.78rem;cursor:pointer;">
-      🔄 Reset cached account data
+    <div style="display:flex;gap:8px;margin-top:14px;">
+      <button onclick="resetHoldingsOnly()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--gold);border-radius:10px;color:var(--gold-light);font-size:0.75rem;cursor:pointer;">
+        ↻ Reset Holdings Only
+      </button>
+      <button onclick="clearCache()" style="flex:1;padding:10px;background:transparent;border:1px solid var(--border);border-radius:10px;color:var(--text-muted);font-size:0.78rem;cursor:pointer;">
+        🔄 Reset All Data
+      </button>
+    </div>
+  </div>
+
+  <!-- Cloud Sync Settings -->
+  <div class="import-card">
+    <div class="plan-card-header">
+      <h3>☁️ Cloud Sync</h3>
+      <span id="sync-status-badge" style="font-size:0.7rem;padding:2px 8px;border-radius:8px;background:rgba(74,222,128,0.1);color:var(--green);">Off</span>
+    </div>
+    <p style="font-size:0.78rem;color:var(--text-muted);margin:4px 0 12px;">Automatically sync your data across all devices via GitHub</p>
+    <div id="sync-setup" style="display:none;">
+      <div class="modal-input-group" style="margin-bottom:10px;">
+        <label style="font-size:0.72rem;color:var(--text-muted);display:block;margin-bottom:5px;">GitHub Personal Access Token</label>
+        <input type="password" id="gh-token-input" placeholder="ghp_..." style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:9px 12px;color:var(--text);font-family:'DM Mono',monospace;font-size:0.82rem;outline:none;">
+      </div>
+      <button onclick="saveGitHubToken()" style="width:100%;padding:11px;background:linear-gradient(135deg,#c9a84c,#8b6914);border:none;border-radius:10px;color:#0a0c0f;font-weight:600;font-size:0.85rem;cursor:pointer;margin-bottom:8px;">
+        Connect GitHub
+      </button>
+    </div>
+    <div id="sync-connected" style="display:none;">
+      <div style="font-size:0.78rem;color:var(--green);margin-bottom:10px;">✓ Connected — data syncs automatically</div>
+      <div style="display:flex;gap:8px;">
+        <button onclick="syncToGitHub(true)" style="flex:1;padding:10px;background:var(--surface2);border:1px solid var(--gold);border-radius:10px;color:var(--gold-light);font-size:0.78rem;cursor:pointer;">
+          ⬆ Push to Cloud
+        </button>
+        <button onclick="loadFromGitHub(true)" style="flex:1;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;color:var(--text-muted);font-size:0.78rem;cursor:pointer;">
+          ⬇ Pull from Cloud
+        </button>
+      </div>
+      <button onclick="disconnectGitHub()" style="width:100%;margin-top:8px;padding:8px;background:transparent;border:1px solid var(--border);border-radius:10px;color:var(--text-muted);font-size:0.72rem;cursor:pointer;">
+        Disconnect
+      </button>
+    </div>
+    <button onclick="toggleSyncSetup()" id="sync-setup-btn" style="width:100%;padding:10px;background:linear-gradient(135deg,#c9a84c,#8b6914);border:none;border-radius:10px;color:#0a0c0f;font-weight:600;font-size:0.85rem;cursor:pointer;">
+      Set Up Cloud Sync
     </button>
   </div>
 
@@ -1099,12 +1179,21 @@
     <!-- Manual entry -->
     <div id="savings-manual" style="display:none;margin-bottom:14px;">
       <div class="monte-inputs">
-        <div class="input-group"><label>Monthly Income ($)</label>
-          <input type="number" id="sav-income" placeholder="e.g. 9200" oninput="calcSavings()">
+        <div class="input-group"><label>Annual Gross Salary ($)</label>
+          <input type="number" id="sav-salary" placeholder="e.g. 90000" oninput="calcSavings()">
         </div>
-        <div class="input-group"><label>Employer Match ($)</label>
-          <input type="number" id="sav-match" placeholder="e.g. 500" oninput="calcSavings()">
+        <div class="input-group"><label>Roth IRA Contribution ($)</label>
+          <input type="number" id="sav-roth" placeholder="e.g. 8000" oninput="calcSavings()">
         </div>
+        <div class="input-group"><label>HSA Contribution ($)</label>
+          <input type="number" id="sav-hsa" placeholder="e.g. 7500" oninput="calcSavings()">
+        </div>
+        <div class="input-group"><label>Other Pre-tax Deductions ($)</label>
+          <input type="number" id="sav-pretax" placeholder="e.g. 0" oninput="calcSavings()">
+        </div>
+      </div>
+      <div style="font-size:0.72rem;color:var(--text-muted);margin-top:6px;">
+        Net take-home = Salary - Roth IRA - HSA - Other deductions. Merrill dividend/interest income is auto-detected from your imported CSV.
       </div>
     </div>
 
@@ -1115,17 +1204,58 @@
     </div>
 
     <!-- Period selector -->
-    <div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
+    <div style="display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;">
       <button class="asset-acct-btn active" id="sav-period-2025" onclick="setSavingsPeriod('2025',this)">2025</button>
       <button class="asset-acct-btn" id="sav-period-2026" onclick="setSavingsPeriod('2026',this)">2026</button>
       <button class="asset-acct-btn" id="sav-period-all" onclick="setSavingsPeriod('all',this)">All Time</button>
+    </div>
+    <!-- Toggle options -->
+    <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+      <button id="sav-toggle-taxes" class="asset-acct-btn active" onclick="toggleSavingsOption('taxes',this)" style="font-size:0.7rem;">
+        Include Taxes
+      </button>
+      <button id="sav-toggle-personal" class="asset-acct-btn active" onclick="toggleSavingsOption('personal',this)" style="font-size:0.7rem;">
+        Include Personal
+      </button>
     </div>
 
     <div id="savings-results"></div>
     <div style="height:180px;margin-top:14px;"><canvas id="savingsChart"></canvas></div>
   </div>
 
-  <!-- Insurance & Estate Checklist -->
+  <!-- Category Drilldown Modal -->
+<div id="cat-drilldown-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:500;overflow-y:auto;">
+  <div style="background:var(--surface);border-radius:20px 20px 0 0;margin-top:60px;padding:20px 20px 120px;min-height:calc(100vh - 60px);">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+      <h3 id="drilldown-title" style="font-family:'Playfair Display',serif;font-size:1.1rem;color:var(--gold-light);"></h3>
+      <button onclick="closeDrilldown()" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:6px 14px;color:var(--text-muted);font-size:0.8rem;cursor:pointer;">Close</button>
+    </div>
+    <!-- Re-classify button -->
+    <div id="reclassify-bar" style="display:none;background:rgba(201,168,76,0.1);border:1px solid rgba(201,168,76,0.3);border-radius:10px;padding:10px 14px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:0.75rem;color:var(--gold-light);">Updated categories won't apply to already-imported transactions unless you re-classify.</span>
+      <button onclick="doReclassify()" style="flex-shrink:0;margin-left:12px;background:var(--gold);border:none;border-radius:8px;padding:5px 12px;color:#0a0c0f;font-size:0.72rem;font-weight:600;cursor:pointer;">Re-classify All</button>
+    </div>
+    <div id="drilldown-summary" style="background:var(--surface2);border-radius:12px;padding:12px;margin-bottom:14px;font-size:0.78rem;"></div>
+    <div id="drilldown-list"></div>
+  </div>
+
+  <!-- Move/Recategorize Picker — fixed to bottom of viewport -->
+  <div id="cat-move-picker" style="display:none;position:fixed;bottom:0;left:0;width:100%;background:var(--surface);border-top:2px solid var(--gold);padding:16px;box-shadow:0 -8px 32px rgba(0,0,0,0.6);z-index:600;">
+    <div style="max-width:480px;margin:0 auto;">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;">
+        <div>
+          <div style="font-size:0.68rem;color:var(--gold-light);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:4px;">Move to category:</div>
+          <div id="move-desc-label" style="font-size:0.78rem;color:var(--text);max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></div>
+        </div>
+        <button onclick="closeMover()" style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:5px 12px;color:var(--text-muted);font-size:0.75rem;cursor:pointer;flex-shrink:0;margin-left:8px;">✕</button>
+      </div>
+      <div id="move-cat-chips" style="display:flex;flex-wrap:wrap;gap:7px;"></div>
+      <div id="move-feedback" style="display:none;margin-top:10px;padding:10px;background:rgba(74,222,128,0.1);border:1px solid rgba(74,222,128,0.3);border-radius:10px;font-size:0.78rem;text-align:center;color:var(--green);"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Insurance & Estate Checklist -->
   <div class="plan-card" style="margin-bottom:80px;">
     <div class="plan-card-header">
       <h3>Insurance & Estate Checklist</h3>
@@ -1211,6 +1341,15 @@
 
 <!-- Peace of Mind Tab -->
 <div class="tab-view" id="tab-peace">
+  <!-- Real spending summary from Savings Analyzer -->
+  <div id="peace-spending-banner" style="background:var(--surface2);border:1px solid var(--border);border-radius:14px;padding:14px 16px;margin-bottom:16px;display:none;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+      <div style="font-size:0.75rem;color:var(--gold-light);font-weight:500;">📊 From Your Imported Statements</div>
+      <div style="font-size:0.68rem;color:var(--text-muted);">annualized · excl. taxes</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;" id="peace-spending-grid"></div>
+    <div id="peace-spending-note"></div>
+  </div>
 
   <!-- Header -->
   <div style="padding:4px 20px 16px;">
@@ -1794,7 +1933,68 @@ function switchHoldingAcct(id) {
 }
 
 // ── CHARTS ────────────────────────────────────────────────────────
-let nwChartInst, monteChartInst;
+let nwChartInst, monteChartInst, spendChartInst;
+
+function getSpendChartData() {
+  // Use real imported transaction data if available, otherwise static demo
+  const tx = savingsData?.transactions || [];
+  if (tx.length > 0) {
+    const cats = {};
+    tx.forEach(t => {
+      if (t.category && t.category !== '_exclude' && t.category !== 'Taxes' && t.category !== 'Personal') {
+        cats[t.category] = (cats[t.category] || 0) + t.amount;
+      }
+    });
+    const sorted = Object.entries(cats).sort((a,b) => b[1]-a[1]);
+    return {
+      labels: sorted.map(([c]) => c),
+      data:   sorted.map(([,v]) => Math.round(v)),
+      colors: sorted.map(([c]) => CAT_COLORS[c] || '#9ca3af'),
+      isReal: true,
+    };
+  }
+  return {
+    labels: spending.map(s => s.cat),
+    data:   spending.map(s => s.amt),
+    colors: spending.map(s => s.color),
+    isReal: false,
+  };
+}
+
+function refreshSpendChart() {
+  const ctx2 = document.getElementById('spendChart')?.getContext('2d');
+  if (!ctx2) return;
+  if (spendChartInst) spendChartInst.destroy();
+  const { labels, data, colors, isReal } = getSpendChartData();
+  spendChartInst = new Chart(ctx2, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data, backgroundColor: colors, borderWidth: 0, hoverOffset: 8 }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: '65%',
+      plugins: {
+        legend: { position:'right', labels:{ color:'#9ca3af', font:{family:'DM Sans',size:11}, boxWidth:10, padding:10 } },
+        tooltip: { callbacks: { label: i => ' ' + i.label + ': $' + i.raw.toLocaleString() } },
+      },
+      onClick: (event, elements) => {
+        if (elements.length > 0) {
+          const cat = labels[elements[0].index];
+          if (isReal) showCategoryDrilldown(cat);
+        }
+      },
+      onHover: (event, elements) => {
+        event.native.target.style.cursor = (elements.length > 0 && isReal) ? 'pointer' : 'default';
+      },
+    }
+  });
+  // Update subtitle hint
+  const hintEl = document.getElementById('spend-chart-hint');
+  if (hintEl) hintEl.textContent = isReal ? 'Tap a slice to see transactions' : 'Import statements to see your real spending';
+}
 
 function initCharts() {
   // Net worth sparkline
@@ -1811,16 +2011,8 @@ function initCharts() {
     options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{display:false},y:{display:false}}}
   });
 
-  // Spending pie
-  const ctx2 = document.getElementById('spendChart').getContext('2d');
-  new Chart(ctx2, {
-    type:'doughnut',
-    data:{
-      labels:spending.map(s=>s.cat),
-      datasets:[{data:spending.map(s=>s.amt),backgroundColor:spending.map(s=>s.color),borderWidth:0,hoverOffset:6}]
-    },
-    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{position:'right',labels:{color:'#9ca3af',font:{family:'DM Sans',size:11},boxWidth:10,padding:10}}}}
-  });
+  // Spending pie — dynamic, clickable
+  refreshSpendChart();
 
   // Monthly trend
   const ctx3 = document.getElementById('trendChart').getContext('2d');
@@ -2105,7 +2297,10 @@ function runMonteCarlo() {
   const age       = +document.getElementById('mc-age').value;
   const retire    = +document.getElementById('mc-retire').value;
   const monthly   = +document.getElementById('mc-savings').value;
-  const spend     = +document.getElementById('mc-spend').value;
+  const realMCSpend = getRealAnnualSpend(true, false);
+  const mcSpendEl = document.getElementById('mc-spend');
+  if (realMCSpend && mcSpendEl && (+mcSpendEl.value === 80000 || !mcSpendEl.value)) mcSpendEl.value = realMCSpend;
+  const spend     = +mcSpendEl?.value || realMCSpend || 80000;
   const life      = +document.getElementById('mc-life').value;
   const inflation = +(document.getElementById('mc-inflation')?.value||3)/100;
   const ssMonthly = +(document.getElementById('mc-ss')?.value||0);
@@ -2353,9 +2548,26 @@ function showTab(name, btn) {
   document.getElementById('tab-'+name).classList.add('active');
   btn.classList.add('active');
   if (name === 'planning' && !planningInited) { initPlanningTab(); planningInited = true; }
+  if (name === 'spending') { refreshSpendChart(); }
   if (name === 'peace' && !peaceInited) { initPeaceTab(); peaceInited = true; }
+  // Refresh Peace banner with latest spending data on every open
+  if (name === 'peace') {
+    const realSpend = getRealAnnualSpend(true, false);
+    const failEl = document.getElementById('fail-spend');
+    if (realSpend && failEl && (+failEl.value === 80000)) failEl.value = realSpend;
+    const banner = document.getElementById('peace-spending-banner');
+    if (banner && realSpend) initPeaceTab();
+  }
   if (name === 'espp') { initESPP(); }
   if (name === 'wellness' && !wellnessInited) { initWellnessTab(); wellnessInited = true; }
+  // Pre-fill Retire tab MC with real spending
+  if (name === 'retire') {
+    const realSpend = getRealAnnualSpend(true, false);
+    if (realSpend) {
+      const mcEl = document.getElementById('mc-spend');
+      if (mcEl && (+mcEl.value === 80000 || !mcEl.value)) mcEl.value = realSpend;
+    }
+  }
   if (name === 'trends' && !trendsInited) { initTrendTab(); trendsInited = true; }
 }
 
@@ -2664,11 +2876,86 @@ function calcESPP() {
 }
 
 
+// ── SPENDING SYNC — pulls real data from Savings Analyzer ───────
+// Returns annualized spending from imported transactions
+// Uses most recent 12 months for accuracy, excludes taxes AND personal by default
+function getRealAnnualSpend(excludeTaxes=true, excludePersonal=true) {
+  const tx = savingsData.transactions;
+  if (!tx || !tx.length) return null;
+
+  // Use most recent 12 months of data to avoid partial-year distortion
+  const sorted = tx.map(t => t.date).sort();
+  const lastDate = new Date(sorted[sorted.length-1]);
+  const cutoff   = new Date(lastDate);
+  cutoff.setMonth(cutoff.getMonth() - 12);
+
+  const recentTx = tx.filter(t => new Date(t.date) >= cutoff);
+  const usedTx   = recentTx.length >= 50 ? recentTx : tx; // fallback to all if not enough data
+
+  // Get actual months covered
+  if (!usedTx.length) return null;
+  const usedDates = usedTx.map(t => t.date).sort();
+  const firstDate = new Date(usedDates[0]);
+  const endDate   = new Date(usedDates[usedDates.length-1]);
+  const monthsCovered = Math.max(1,
+    (endDate.getFullYear() - firstDate.getFullYear()) * 12 +
+    (endDate.getMonth() - firstDate.getMonth()) + 1
+  );
+
+  // Filter
+  const filtered = usedTx.filter(t => {
+    if (excludeTaxes    && t.category === 'Taxes')    return false;
+    if (excludePersonal && t.category === 'Personal') return false;
+    return true;
+  });
+  const totalSpend = filtered.reduce((s,t) => s+t.amount, 0);
+
+  // Annualize
+  const annualized = (totalSpend / monthsCovered) * 12;
+  return Math.round(annualized);
+}
+
+// Returns real monthly spending
+function getRealMonthlySpend(excludeTaxes=true, excludePersonal=true) {
+  const annual = getRealAnnualSpend(excludeTaxes, excludePersonal);
+  return annual ? Math.round(annual / 12) : null;
+}
+
+// Returns real annual income from savings data
+function getRealAnnualIncome() {
+  const inc = savingsData.income;
+  if (!inc || !inc.length) return null;
+  const dates = inc.map(t => t.date).sort();
+  const firstDate = new Date(dates[0]);
+  const lastDate  = new Date(dates[dates.length-1]);
+  const monthsCovered = Math.max(1,
+    (lastDate.getFullYear() - firstDate.getFullYear()) * 12 +
+    (lastDate.getMonth() - firstDate.getMonth()) + 1
+  );
+  const total = inc.reduce((s,t) => s+t.amount, 0);
+  return Math.round((total / monthsCovered) * 12);
+}
+
+// Returns spending breakdown by category (annualized)
+function getRealSpendingByCategory(excludeTaxes=true) {
+  const tx = savingsData.transactions;
+  if (!tx || !tx.length) return {};
+  const dates = tx.map(t => t.date).sort();
+  const months = Math.max(1,
+    (new Date(dates[dates.length-1]).getFullYear() - new Date(dates[0]).getFullYear()) * 12 +
+    (new Date(dates[dates.length-1]).getMonth() - new Date(dates[0]).getMonth()) + 1
+  );
+  const cats = {};
+  tx.forEach(t => {
+    if (excludeTaxes && t.category === 'Taxes') return;
+    cats[t.category] = (cats[t.category]||0) + t.amount;
+  });
+  // Annualize each category
+  Object.keys(cats).forEach(k => cats[k] = Math.round(cats[k]/months*12));
+  return cats;
+}
+
 // ── SAVINGS ANALYZER ────────────────────────────────────────────
-
-
-// ── WELLNESS TAB ────────────────────────────────────────────────
-
 
 // ── WELLNESS TAB ──────────────────────────────────────────────────
 let wellnessInited = false;
@@ -2677,7 +2964,8 @@ let cfChartInst = null;
 // ── AM I OK? INDICATOR ────────────────────────────────────────────
 function renderAmIOK() {
   const nw = calcNetWorth();
-  const annualSpend = parseFloat(localStorage.getItem('wd_annual_spend') || '80000');
+  const realSpend = getRealAnnualSpend(true, false);
+  const annualSpend = realSpend || parseFloat(localStorage.getItem('wd_annual_spend') || '80000');
   const wr = nw > 0 ? annualSpend / nw : 1;
   const divIncome = 0;
   const banner = document.getElementById('am-i-ok-banner');
@@ -2774,7 +3062,7 @@ function renderJournal() {
   const isOver  = spent > budget;
   const barColor = pct<70?'var(--green)':pct<90?'var(--gold-light)':'var(--red)';
 
-  const catColors = {Housing:'#c9a84c',Food:'#60a5fa',Transport:'#4ade80',Healthcare:'#a78bfa',Leisure:'#fb923c',Other:'#9ca3af'};
+  const catColors = CAT_COLORS;
 
   const progEl = document.getElementById('journal-progress');
   if (progEl) progEl.innerHTML = `
@@ -2817,7 +3105,10 @@ function calcFailScenarios() {
   if (!el) return;
   const nw = calcNetWorth();
   const life = +(document.getElementById('fail-life')?.value||90);
-  const spend = +(document.getElementById('fail-spend')?.value||80000);
+  const realSpend = getRealAnnualSpend(true, false);
+  const failSpendEl = document.getElementById('fail-spend');
+  if (realSpend && failSpendEl && (failSpendEl.value == '80000' || !failSpendEl.value)) failSpendEl.value = realSpend;
+  const spend = +(failSpendEl?.value||realSpend||80000);
   const yearsLeft = life - 45;
 
   // Find the return rate at which money runs out exactly
@@ -2916,8 +3207,15 @@ function renderWorries() {
 
 // ── CASH FLOW TRACKER ─────────────────────────────────────────────
 function renderCashFlow() {
-  const income   = +(document.getElementById('cf-income')?.value||9200);
-  const expenses = +(document.getElementById('cf-expenses')?.value||6667);
+  const realIncome  = getRealAnnualIncome();
+  const realExpenses= getRealMonthlySpend(true, false);
+  // Pre-fill inputs with real data if available and fields are empty/default
+  const incomeEl   = document.getElementById('cf-income');
+  const expenseEl  = document.getElementById('cf-expenses');
+  if (realIncome  && incomeEl  && (incomeEl.value  == '9200' || !incomeEl.value))  incomeEl.value  = Math.round(realIncome/12);
+  if (realExpenses && expenseEl && (expenseEl.value == '6667' || !expenseEl.value)) expenseEl.value = realExpenses;
+  const income   = +(incomeEl?.value||9200);
+  const expenses = +(expenseEl?.value||6667);
   const net      = income - expenses;
   const divMonthly = 0;
   const isPositive = net >= 0;
@@ -3234,6 +3532,85 @@ function calcESPP() {
 }
 
 
+// ── SPENDING SYNC — pulls real data from Savings Analyzer ───────
+// Returns annualized spending from imported transactions
+// Uses most recent 12 months for accuracy, excludes taxes AND personal by default
+function getRealAnnualSpend(excludeTaxes=true, excludePersonal=true) {
+  const tx = savingsData.transactions;
+  if (!tx || !tx.length) return null;
+
+  // Use most recent 12 months of data to avoid partial-year distortion
+  const sorted = tx.map(t => t.date).sort();
+  const lastDate = new Date(sorted[sorted.length-1]);
+  const cutoff   = new Date(lastDate);
+  cutoff.setMonth(cutoff.getMonth() - 12);
+
+  const recentTx = tx.filter(t => new Date(t.date) >= cutoff);
+  const usedTx   = recentTx.length >= 50 ? recentTx : tx; // fallback to all if not enough data
+
+  // Get actual months covered
+  if (!usedTx.length) return null;
+  const usedDates = usedTx.map(t => t.date).sort();
+  const firstDate = new Date(usedDates[0]);
+  const endDate   = new Date(usedDates[usedDates.length-1]);
+  const monthsCovered = Math.max(1,
+    (endDate.getFullYear() - firstDate.getFullYear()) * 12 +
+    (endDate.getMonth() - firstDate.getMonth()) + 1
+  );
+
+  // Filter
+  const filtered = usedTx.filter(t => {
+    if (excludeTaxes    && t.category === 'Taxes')    return false;
+    if (excludePersonal && t.category === 'Personal') return false;
+    return true;
+  });
+  const totalSpend = filtered.reduce((s,t) => s+t.amount, 0);
+
+  // Annualize
+  const annualized = (totalSpend / monthsCovered) * 12;
+  return Math.round(annualized);
+}
+
+// Returns real monthly spending
+function getRealMonthlySpend(excludeTaxes=true, excludePersonal=true) {
+  const annual = getRealAnnualSpend(excludeTaxes, excludePersonal);
+  return annual ? Math.round(annual / 12) : null;
+}
+
+// Returns real annual income from savings data
+function getRealAnnualIncome() {
+  const inc = savingsData.income;
+  if (!inc || !inc.length) return null;
+  const dates = inc.map(t => t.date).sort();
+  const firstDate = new Date(dates[0]);
+  const lastDate  = new Date(dates[dates.length-1]);
+  const monthsCovered = Math.max(1,
+    (lastDate.getFullYear() - firstDate.getFullYear()) * 12 +
+    (lastDate.getMonth() - firstDate.getMonth()) + 1
+  );
+  const total = inc.reduce((s,t) => s+t.amount, 0);
+  return Math.round((total / monthsCovered) * 12);
+}
+
+// Returns spending breakdown by category (annualized)
+function getRealSpendingByCategory(excludeTaxes=true) {
+  const tx = savingsData.transactions;
+  if (!tx || !tx.length) return {};
+  const dates = tx.map(t => t.date).sort();
+  const months = Math.max(1,
+    (new Date(dates[dates.length-1]).getFullYear() - new Date(dates[0]).getFullYear()) * 12 +
+    (new Date(dates[dates.length-1]).getMonth() - new Date(dates[0]).getMonth()) + 1
+  );
+  const cats = {};
+  tx.forEach(t => {
+    if (excludeTaxes && t.category === 'Taxes') return;
+    cats[t.category] = (cats[t.category]||0) + t.amount;
+  });
+  // Annualize each category
+  Object.keys(cats).forEach(k => cats[k] = Math.round(cats[k]/months*12));
+  return cats;
+}
+
 // ── SAVINGS ANALYZER ────────────────────────────────────────────
 // ── ESPP CALCULATOR ──────────────────────────────────────────────
 // ── ESPP CALCULATOR ──────────────────────────────────────────────
@@ -3381,6 +3758,85 @@ function calcESPP() {
 }
 
 
+// ── SPENDING SYNC — pulls real data from Savings Analyzer ───────
+// Returns annualized spending from imported transactions
+// Uses most recent 12 months for accuracy, excludes taxes AND personal by default
+function getRealAnnualSpend(excludeTaxes=true, excludePersonal=true) {
+  const tx = savingsData.transactions;
+  if (!tx || !tx.length) return null;
+
+  // Use most recent 12 months of data to avoid partial-year distortion
+  const sorted = tx.map(t => t.date).sort();
+  const lastDate = new Date(sorted[sorted.length-1]);
+  const cutoff   = new Date(lastDate);
+  cutoff.setMonth(cutoff.getMonth() - 12);
+
+  const recentTx = tx.filter(t => new Date(t.date) >= cutoff);
+  const usedTx   = recentTx.length >= 50 ? recentTx : tx; // fallback to all if not enough data
+
+  // Get actual months covered
+  if (!usedTx.length) return null;
+  const usedDates = usedTx.map(t => t.date).sort();
+  const firstDate = new Date(usedDates[0]);
+  const endDate   = new Date(usedDates[usedDates.length-1]);
+  const monthsCovered = Math.max(1,
+    (endDate.getFullYear() - firstDate.getFullYear()) * 12 +
+    (endDate.getMonth() - firstDate.getMonth()) + 1
+  );
+
+  // Filter
+  const filtered = usedTx.filter(t => {
+    if (excludeTaxes    && t.category === 'Taxes')    return false;
+    if (excludePersonal && t.category === 'Personal') return false;
+    return true;
+  });
+  const totalSpend = filtered.reduce((s,t) => s+t.amount, 0);
+
+  // Annualize
+  const annualized = (totalSpend / monthsCovered) * 12;
+  return Math.round(annualized);
+}
+
+// Returns real monthly spending
+function getRealMonthlySpend(excludeTaxes=true, excludePersonal=true) {
+  const annual = getRealAnnualSpend(excludeTaxes, excludePersonal);
+  return annual ? Math.round(annual / 12) : null;
+}
+
+// Returns real annual income from savings data
+function getRealAnnualIncome() {
+  const inc = savingsData.income;
+  if (!inc || !inc.length) return null;
+  const dates = inc.map(t => t.date).sort();
+  const firstDate = new Date(dates[0]);
+  const lastDate  = new Date(dates[dates.length-1]);
+  const monthsCovered = Math.max(1,
+    (lastDate.getFullYear() - firstDate.getFullYear()) * 12 +
+    (lastDate.getMonth() - firstDate.getMonth()) + 1
+  );
+  const total = inc.reduce((s,t) => s+t.amount, 0);
+  return Math.round((total / monthsCovered) * 12);
+}
+
+// Returns spending breakdown by category (annualized)
+function getRealSpendingByCategory(excludeTaxes=true) {
+  const tx = savingsData.transactions;
+  if (!tx || !tx.length) return {};
+  const dates = tx.map(t => t.date).sort();
+  const months = Math.max(1,
+    (new Date(dates[dates.length-1]).getFullYear() - new Date(dates[0]).getFullYear()) * 12 +
+    (new Date(dates[dates.length-1]).getMonth() - new Date(dates[0]).getMonth()) + 1
+  );
+  const cats = {};
+  tx.forEach(t => {
+    if (excludeTaxes && t.category === 'Taxes') return;
+    cats[t.category] = (cats[t.category]||0) + t.amount;
+  });
+  // Annualize each category
+  Object.keys(cats).forEach(k => cats[k] = Math.round(cats[k]/months*12));
+  return cats;
+}
+
 // ── SAVINGS ANALYZER ─────────────────────────────────────────────
 
 let savingsData = JSON.parse(localStorage.getItem('wd_savings_data') || 'null') || {
@@ -3389,8 +3845,117 @@ let savingsData = JSON.parse(localStorage.getItem('wd_savings_data') || 'null') 
 };
 function saveSavingsData() { localStorage.setItem('wd_savings_data', JSON.stringify(savingsData)); }
 
+// ── LEARNED RULES SYSTEM ─────────────────────────────────────────
+// Stores user-taught keyword→category mappings in localStorage
+let learnedRules = JSON.parse(localStorage.getItem('wd_learned_rules') || '[]');
+// Each rule: { keyword: string (lowercase), category: string, created: ISO }
+
+function saveLearnedRules() { localStorage.setItem('wd_learned_rules', JSON.stringify(learnedRules)); }
+
+function applyLearnedRulesToAll() {
+  if (!learnedRules.length) return 0;
+  let changed = 0;
+  savingsData.transactions.forEach(t => {
+    const lower = (t.description || '').toLowerCase();
+    for (const rule of learnedRules) {
+      if (lower.includes(rule.keyword)) {
+        if (t.category !== rule.category) { t.category = rule.category; changed++; }
+        break;
+      }
+    }
+  });
+  if (changed) saveSavingsData();
+  return changed;
+}
+
+// Re-run the built-in keyword classifier on every stored transaction.
+// Learned rules still take priority. Call this after editing SPENDING_CATS.
+function reclassifyAllTransactions() {
+  let changed = 0;
+  savingsData.transactions.forEach(t => {
+    const newCat = classifyTransaction(t.description, t.type || '', t.amount);
+    if (newCat !== '_exclude' && newCat !== t.category) {
+      t.category = newCat;
+      changed++;
+    }
+  });
+  if (changed) saveSavingsData();
+  return changed;
+}
+
+function extractRuleKeyword(desc) {
+  return desc.toLowerCase()
+    .replace(/[#*@]/g, '').replace(/\d+/g, '')
+    .replace(/[^\w\s]/g, '').replace(/\s+/g, ' ').trim()
+    .substring(0, 22).trim();
+}
+
+let _moveTarget = null;
+
+function openMove(keyword, fromCat, desc) {
+  _moveTarget = { keyword, fromCat, desc };
+  const picker = document.getElementById('cat-move-picker');
+  const label  = document.getElementById('move-desc-label');
+  const chips  = document.getElementById('move-cat-chips');
+  const fb     = document.getElementById('move-feedback');
+  if (!picker) return;
+  label.textContent = desc;
+  fb.style.display = 'none';
+  const allCats = Object.keys(SPENDING_CATS).filter(c => c !== fromCat);
+  chips.innerHTML = allCats.map(cat =>
+    `<button onclick="confirmMove('${cat}')"
+      style="background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:6px 14px;color:var(--text);font-size:0.75rem;cursor:pointer;transition:all 0.15s;"
+      onmouseover="this.style.background='var(--gold)';this.style.color='#0a0c0f'"
+      onmouseout="this.style.background='var(--surface2)';this.style.color='var(--text)'">${cat}</button>`
+  ).join('');
+  picker.style.display = 'block';
+}
+
+function confirmMove(newCat) {
+  if (!_moveTarget) return;
+  const { keyword, fromCat } = _moveTarget;
+  learnedRules = learnedRules.filter(r => r.keyword !== keyword);
+  learnedRules.unshift({ keyword, category: newCat, created: new Date().toISOString() });
+  saveLearnedRules();
+  const changed = applyLearnedRulesToAll();
+  const fb = document.getElementById('move-feedback');
+  if (fb) {
+    fb.style.display = 'block';
+    fb.innerHTML = `✓ Rule saved &mdash; <strong>"${keyword}"</strong> → <strong>${newCat}</strong>${changed ? ` · ${changed} tx updated` : ''}`;
+  }
+  setTimeout(() => { closeMover(); showCategoryDrilldown(fromCat); }, 1400);
+}
+
+function closeMover() {
+  const p = document.getElementById('cat-move-picker');
+  if (p) p.style.display = 'none';
+  _moveTarget = null;
+}
+
+function deleteRule(keyword, fromCat) {
+  learnedRules = learnedRules.filter(r => r.keyword !== keyword);
+  saveLearnedRules();
+  showCategoryDrilldown(fromCat);
+}
+
+
 let savingsPeriod = '2025';
 let savingsChartInst = null;
+let savingsExcludeTaxes  = false;
+let savingsExcludePersonal = false;
+
+function toggleSavingsOption(option, btn) {
+  if (option === 'taxes') {
+    savingsExcludeTaxes = !savingsExcludeTaxes;
+    btn.classList.toggle('active', !savingsExcludeTaxes);
+    btn.textContent = savingsExcludeTaxes ? 'Taxes Excluded' : 'Include Taxes';
+  } else if (option === 'personal') {
+    savingsExcludePersonal = !savingsExcludePersonal;
+    btn.classList.toggle('active', !savingsExcludePersonal);
+    btn.textContent = savingsExcludePersonal ? 'Personal Excluded' : 'Include Personal';
+  }
+  calcSavings();
+}
 
 function setSavingsPeriod(period, btn) {
   savingsPeriod = period;
@@ -3399,21 +3964,84 @@ function setSavingsPeriod(period, btn) {
   calcSavings();
 }
 
-// Category keywords for auto-classification
-const SPENDING_CATS = {
-  Housing:   ['rent','mortgage','hoa','property tax','insurance','utilities','electric','gas','water','comcast','att','verizon'],
-  Food:      ['restaurant','food','grocery','grubhub','doordash','ubereats','starbucks','mcdonalds','chipotle','whole foods','trader joe','jewel'],
-  Transport: ['uber','lyft','gas station','parking','cta','metra','transit','auto','car wash','shell','bp','citgo'],
-  Healthcare:['pharmacy','cvs','walgreens','doctor','dental','vision','hospital','medical','health'],
-  Shopping:  ['amazon','target','walmart','costco','best buy','apple','nordstrom','macy'],
-  Travel:    ['airline','hotel','airbnb','expedia','booking','delta','united','marriott'],
-  Entertainment:['netflix','spotify','hulu','movie','theater','concert','ticketmaster'],
-  Other:     [],
+// ── CATEGORY COLOUR PALETTE ──────────────────────────────────────
+const CAT_COLORS = {
+  Housing:       '#c9a84c',
+  Utilities:     '#22d3ee',
+  Food:          '#60a5fa',
+  Transport:     '#4ade80',
+  Healthcare:    '#a78bfa',
+  Taxes:         '#f87171',
+  Pets:          '#34d399',
+  Education:     '#818cf8',
+  Shopping:      '#fb923c',
+  Travel:        '#e879f9',
+  Entertainment: '#38bdf8',
+  Insurance:     '#f59e0b',
+  Personal:      '#94a3b8',
+  Other:         '#9ca3af',
 };
 
-function classifyTransaction(desc) {
+// Category keywords for auto-classification
+// ORDER MATTERS — first match wins. Personal must be before Housing to
+// prevent "Zelle payment to RICARDO TORRE" from matching Housing's 'ricardo torres'.
+const SPENDING_CATS = {
+  // Taxes — IRS payments
+  Taxes: ['irs','usataxpymt','il dept','state tax','estimated tax','us treasury irs'],
+  // Personal transfers — checked early so Zelle/Venmo names don't bleed into other cats
+  Personal: ['zelle payment to','cash app*','venmo','paypal','pp*','atm withdrawal','atm cash'],
+  // Housing — rent/mortgage/HOA only (utilities split out below)
+  Housing: ['rent','mortgage','hoa','ricardo torres','west pacific storage','storage'],
+  // Utilities — gas, electric, internet, phone
+  Utilities: ['peoples gas','comed','nicor','peoples energy','at&t','att bill','comcast','xfinity','verizon','t-mobile','sprint','autopay'],
+  // Food & Dining (restaurants + groceries)
+  Food: ['tst*','grubhub','doordash','ubereats','starbucks','mcdonalds','chipotle','whole foods','trader joe','jewel','mariano','dominick','aldi','food','dining','cafe','pizza','sushi','taco','burger','panda','subway','dunkin','panera','chick-fil','wendy','popeye','olive garden','nicky','carry out','restaurant','diner','bistro','grill','bbq','thai','chinese','italian','mexican','ramen','bagel','deli','bakery','brunch','tavern','pub','bar ','cosi','potbelly','jimmy john','portillo','giordano','lou malnati','pequod','xoco','avec','girl & the goat','bavette','panchos','pistola'],
+  // Transport & Auto
+  Transport: ['uber','lyft','parking','park chicago','cta','metra','transit','auto','car wash','shell','bp','citgo','speedway','marathon','gas station','tesla','divvy','bird','lime'],
+  // Healthcare & Fitness
+  Healthcare: ['pharmacy','cvs','walgreens','rite aid','doctor','dental','vision','hospital','medical','health','evolve counseling','counseling','therapy','yoga','stix yoga','stixy','gym','equinox','crunch','planet fitness','orangetheory','fitness','pilates','spa','massage'],
+  // Insurance — health, auto, life, renters
+  Insurance: ['insurance','allstate','state farm','geico','progressive','nationwide','farmers','liberty mutual','travelers','cigna','aetna','bcbs','blue cross','blue shield','unitedhealthcare','humana','principal life','lincoln nationa','aflac','mutual of omaha','hartford','guardian','metlife','prudential','renters ins','auto ins','life ins','health ins','premium payment'],
+  // Pets — Eli
+  Pets: ['chewy','petco','petsmart','vet','animal hospital','pulaski animal','brighton park animal','scout - west loop','scout west loop','rover','pet sit','dog','puppy'],
+  // Education & Tuition — field school, music lessons, tutoring
+  Education: ['field school','facts','tuition','mckinley park music','music school','music lesson','tutor','kumon','learning','school supply','coursera','udemy','masterclass','skillshare'],
+  // Shopping
+  Shopping: ['amazon reta','amazon mark','amazon','amzn','target','walmart','costco','best buy','apple','nordstrom','macy','tj maxx','ross','marshalls','kohls','home depot','lowes','ikea','wayfair','shein','zara','h&m','gap','old navy','banana republic','express','forever 21','fashion nova','asos','ebay','etsy'],
+  // Travel
+  Travel: ['airline','hotel','airbnb','expedia','booking','delta','united','american air','marriott','hilton','hyatt','southwest','spirit','frontier','vrbo','trip','travel credit'],
+  // Entertainment
+  Entertainment: ['netflix','spotify','hulu','disney','hbomax','max.com','apple tv','youtube','audible','movie','theater','concert','ticketmaster','amc','paramount','peacock','sling','discovery','onlyfans','google *','reggies','reggie'],
+  Other: [],
+};
+
+// Transactions to exclude from spending entirely
+function shouldExcludeTransaction(desc, type, amt) {
+  const lower = (desc||'').toLowerCase();
+  const t = (type||'').toLowerCase();
+  // Skip BarclayCard payments from Chase (double counting)
+  if (lower.includes('barclaycard') && (t.includes('ach') || lower.includes('creditcard'))) return true;
+  // Skip account transfers between own accounts
+  if (t === 'acct_xfer') return true;
+  if (lower.includes('online transfer') && lower.includes('felicia')) return true;
+  // Skip credits/deposits/refunds on BarclayCard
+  if (t === 'credit' && (lower.includes('payment received') || lower.includes('travel credit') || lower.includes('refund') || lower.includes('credit'))) return true;
+  // Skip direct deposits and payroll
+  if (t.includes('dda_credit') || lower.includes('direct dep') || lower.includes('payroll')) return true;
+  // Skip Merrill/investment transfers
+  if (lower.includes('jp morgan chase bank') || lower.includes('merrill')) return true;
+  return false;
+}
+
+function classifyTransaction(desc, type, amt) {
+  if (shouldExcludeTransaction(desc, type, amt)) return '_exclude';
   const lower = (desc || '').toLowerCase();
+  // Learned rules take priority over built-in keywords
+  for (const rule of learnedRules) {
+    if (lower.includes(rule.keyword)) return rule.category;
+  }
   for (const [cat, keywords] of Object.entries(SPENDING_CATS)) {
+    if (cat === 'Other') continue;
     if (keywords.some(k => lower.includes(k))) return cat;
   }
   return 'Other';
@@ -3441,55 +4069,191 @@ function parseChaseCSV(rows, source) {
     const month = parts[0] ? parts[0].padStart(2,'0') : '';
     const date  = year + '-' + month + '-' + (parts[1]||'').padStart(2,'0');
 
+    const txType = row[header.findIndex(h=>h.includes('type'))] || '';
     if (amt < 0) {
-      // Debit/spending
-      transactions.push({ date, amount: Math.abs(amt), description: desc,
-        category: classifyTransaction(desc), source, year, month });
+      const cat = classifyTransaction(desc, txType);
+      if (cat !== '_exclude') {
+        transactions.push({ date, amount: Math.abs(amt), description: desc,
+          category: cat, source, year, month });
+      }
     } else if (amt > 0) {
-      // Credit/income (payroll, transfers in)
-      const isIncome = /payroll|direct dep|salary|zelle|venmo|transfer in/i.test(desc);
-      if (isIncome) income.push({ date, amount: amt, description: desc, source, year, month });
+      // Exclude Merrill/investment transfers to Chase — not income
+      const isMerrillTransfer = /merrill|jp morgan|investment|brokerage|wire/i.test(desc);
+      const isOwnTransfer = /online transfer|acct_xfer|zelle payment to/i.test(desc+txType);
+      // Only count genuine payroll/direct deposits as income
+      const isIncome = /payroll|direct dep|salary|adp|heartland|gusto|paychex/i.test(desc+txType);
+      if (isIncome && !isMerrillTransfer && !isOwnTransfer) {
+        income.push({ date, amount: amt, description: desc, source, year, month, category:'Salary' });
+      }
     }
   }
   return { transactions, income };
 }
 
 // Parse BarclayCard CSV format
+// Columns: Transaction Date, Description, Category, Amount, Card Last 4 Digits, Purchased by
 function parseBarclayCSV(rows, source) {
-  const transactions = [];
-  // BarclayCard format: Transaction Date, Description, Category, Amount
-  const header = rows[0] ? rows[0].map(h => (h||'').toLowerCase().trim()) : [];
-  const dateCol = header.findIndex(h => h.includes('date'));
+  const transactions = [], income = [];
+  // Find header row — may not be first row
+  let headerRowIdx = 0;
+  for (let i = 0; i < Math.min(rows.length, 10); i++) {
+    const r = rows[i];
+    if (r && r.some(c => /transaction date|description|amount/i.test(c||''))) {
+      headerRowIdx = i; break;
+    }
+  }
+  const header = rows[headerRowIdx] ? rows[headerRowIdx].map(h => (h||'').toLowerCase().trim()) : [];
+  log('BarclayCard headers found: ' + header.join(' | '));
+  const dateCol = header.findIndex(h => h.includes('transaction date') || (h.includes('date') && !h.includes('post')));
   const descCol = header.findIndex(h => h.includes('description'));
   const amtCol  = header.findIndex(h => h.includes('amount'));
+  const catCol  = header.findIndex(h => h.includes('category'));
+  log('BarclayCard cols: date=' + dateCol + ' desc=' + descCol + ' amt=' + amtCol + ' cat=' + catCol);
 
-  for (let i = 1; i < rows.length; i++) {
+  for (let i = headerRowIdx + 1; i < rows.length; i++) {
     const row = rows[i];
     if (!row || row.every(c => !c)) continue;
-    const dateStr = row[dateCol] || '';
-    const desc    = row[descCol] || '';
-    const amt     = Math.abs(parseFloat((row[amtCol] || '0').replace(/[$,]/g,'')));
-    if (isNaN(amt) || !dateStr || amt === 0) continue;
+    const dateStr = (row[dateCol] || '').trim();
+    const desc    = (row[descCol] || '').trim();
+    const rawAmt  = (row[amtCol]  || '0').replace(/[$,]/g,'').trim();
+    const bcCat   = (row[catCol]  || '').trim().toUpperCase(); // DEBIT or CREDIT
+    if (!dateStr || !desc) continue;
+
+    const amt = parseFloat(rawAmt);
+    if (isNaN(amt)) continue;
 
     const parts = dateStr.split('/');
-    const year  = parts.length === 3 ? (parts[2].length === 2 ? '20'+parts[2] : parts[2]) : '';
-    const month = parts[0] ? parts[0].padStart(2,'0') : '';
-    const date  = year + '-' + month + '-' + (parts[1]||'').padStart(2,'0');
+    if (parts.length < 3) continue;
+    const year  = parts[2].length === 2 ? '20'+parts[2] : parts[2];
+    const month = parts[0].padStart(2,'0');
+    const date  = year + '-' + month + '-' + parts[1].padStart(2,'0');
 
-    transactions.push({ date, amount: amt, description: desc,
-      category: classifyTransaction(desc), source, year, month });
+    // BarclayCard: negative = charge (spending), positive = credit/payment
+    const absAmt = Math.abs(amt);
+    if (absAmt === 0) continue;
+
+    if (amt < 0) {
+      // Spending — classify and add
+      const cat = classifyTransaction(desc, bcCat, amt);
+      if (cat !== '_exclude') {
+        transactions.push({ date, amount: absAmt, description: desc,
+          category: cat, source, year, month });
+      }
+    } else {
+      // Credits — skip payments and travel credits (not income)
+      // Only count as income if it's a genuine refund
+      const isPayment = /payment received|payment thank/i.test(desc);
+      const isTravel  = /travel credit/i.test(desc);
+      if (!isPayment && !isTravel) {
+        // Genuine refund — subtract from spending by adding negative
+        const cat = classifyTransaction(desc, 'CREDIT', amt);
+        if (cat !== '_exclude') {
+          transactions.push({ date, amount: -absAmt, description: 'Refund: '+desc,
+            category: cat, source, year, month });
+        }
+      }
+    }
   }
-  return { transactions, income: [] };
+  log('BarclayCard: ' + transactions.length + ' transactions parsed from ' + (rows.length-1) + ' rows');
+  return { transactions, income };
+}
+
+// Parse Merrill Lynch transaction CSV for income
+function parseMerrillCSV(rows, source) {
+  const income = [];
+  const transactions = [];
+
+  // Find header row
+  let headerIdx = 0;
+  for (let i = 0; i < Math.min(rows.length, 5); i++) {
+    if (rows[i] && rows[i].some(c => (c||'').toLowerCase().includes('trade date'))) {
+      headerIdx = i; break;
+    }
+  }
+  const header = (rows[headerIdx]||[]).map(h => (h||'').toLowerCase().trim());
+  const dateCol = header.findIndex(h => h.includes('trade date'));
+  const acctCol = header.findIndex(h => h.includes('account'));
+  const descCol = header.findIndex(h => h.includes('description'));
+  const amtCol  = header.findIndex(h => h.includes('amount'));
+  const symCol  = header.findIndex(h => h.includes('symbol'));
+
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.every(c => !c)) continue;
+
+    const acct = (row[acctCol] || '').trim();
+    const desc = (row[descCol] || '').trim();
+    const amtRaw = (row[amtCol] || '').replace(/[$,()]/g, '').trim();
+    const dateStr = (row[dateCol] || '').trim();
+    const sym  = (row[symCol] || '').trim();
+
+    // Only count Louis' CMA account — skip kids' GST accounts
+    if (!acct.includes('628-38099') && !acct.toLowerCase().includes("louis")) continue;
+
+    // Parse amount — parentheses = negative
+    const isNeg = (row[amtCol]||'').includes('(');
+    const amt = parseFloat(amtRaw) * (isNeg ? -1 : 1);
+    if (isNaN(amt) || amt === 0) continue;
+
+    // Parse date
+    const parts = dateStr.split('/');
+    if (parts.length < 3) continue;
+    const year  = parts[2].length === 2 ? '20'+parts[2] : parts[2];
+    const month = parts[0].padStart(2,'0');
+    const date  = year + '-' + month + '-' + parts[1].padStart(2,'0');
+
+    const descLower = desc.toLowerCase();
+
+    // EXCLUDE: transfers to/from Chase, withdrawals, purchases
+    if (descLower.includes('withdrawal') ||
+        descLower.includes('funds transfer') ||
+        descLower.includes('jp morgan chase') ||
+        descLower.includes('purchase') ||
+        descLower.includes('bought') ||
+        descLower.includes('sold') ||
+        descLower.includes('reinvest')) continue;
+
+    // INCOME: Dividends (must have positive amount)
+    if (descLower.includes('dividend') && amt > 0) {
+      // Extract holding name for display
+      const holdingMatch = desc.match(/HOLDING\s+[\d,.]+/i);
+      const displayDesc = sym ? 'Dividend: ' + sym : desc.substring(0, 50);
+      income.push({ date, amount: amt, description: displayDesc,
+        source, year, month, category: 'Dividends' });
+      continue;
+    }
+
+    // INCOME: Bond interest payments
+    if ((descLower.includes('interest') || descLower.includes('coupon')) && amt > 0) {
+      income.push({ date, amount: amt, description: 'Interest: ' + desc.substring(0, 40),
+        source, year, month, category: 'Interest' });
+      continue;
+    }
+
+    // INCOME: Bank interest
+    if (descLower.includes('bank interest') && amt > 0) {
+      income.push({ date, amount: amt, description: 'Bank Interest',
+        source, year, month, category: 'Interest' });
+      continue;
+    }
+  }
+
+  log('Merrill: ' + income.length + ' income entries parsed');
+  return { transactions, income };
 }
 
 // Called from Import tab when Chase/Barclaycard CSV is parsed
 function processSavingsImport(rows, instId) {
+  log('Savings import: ' + instId + ' with ' + rows.length + ' rows');
   let parsed;
   if (instId === 'chase') {
     parsed = parseChaseCSV(rows, 'Chase');
   } else if (instId === 'barclaycard') {
     parsed = parseBarclayCSV(rows, 'BarclayCard');
-  } else return;
+  } else if (instId === 'merrill') {
+    parsed = parseMerrillCSV(rows, 'Merrill');
+  } else { log('Unknown instId: ' + instId); return; }
+  log(instId + ' result: ' + parsed.transactions.length + ' tx, ' + parsed.income.length + ' income');
 
   // Merge — avoid duplicates by date+amount+desc
   const existing = new Set(savingsData.transactions.map(t => t.date+'|'+t.amount+'|'+t.description));
@@ -3509,6 +4273,8 @@ function processSavingsImport(rows, instId) {
 
   // Show statement data panel
   calcSavings();
+  // Refresh the spending tab pie so it reflects real data
+  refreshSpendChart();
 }
 
 function calcSavings() {
@@ -3522,19 +4288,40 @@ function calcSavings() {
   const tx  = filterYear ? txAll.filter(t => t.year === filterYear) : txAll;
   const inc = filterYear ? incAll.filter(t => t.year === filterYear) : incAll;
 
-  // Manual income override
-  const manualIncome = parseFloat(document.getElementById('sav-income')?.value || 0) * 12;
-  const employerMatch = parseFloat(document.getElementById('sav-match')?.value || 0) * 12;
+  // Salary inputs
+  const grossSalary  = parseFloat(document.getElementById('sav-salary')?.value  || 0);
+  const rothContrib  = parseFloat(document.getElementById('sav-roth')?.value    || 0);
+  const hsaContrib   = parseFloat(document.getElementById('sav-hsa')?.value     || 0);
+  const pretaxOther  = parseFloat(document.getElementById('sav-pretax')?.value  || 0);
+  const netSalary    = Math.max(0, grossSalary - rothContrib - hsaContrib - pretaxOther);
 
-  const totalSpend  = tx.reduce((s,t) => s+t.amount, 0);
-  const stmtIncome  = inc.reduce((s,t) => s+t.amount, 0);
-  const totalIncome = manualIncome > 0 ? manualIncome + employerMatch : stmtIncome + employerMatch;
+  // Apply category exclusion toggles
+  const filteredTx = tx.filter(t => {
+    if (savingsExcludeTaxes   && t.category === 'Taxes')    return false;
+    if (savingsExcludePersonal && t.category === 'Personal') return false;
+    return true;
+  });
+  const totalSpend  = filteredTx.reduce((s,t) => s+t.amount, 0);
+  const taxSpend    = tx.filter(t=>t.category==='Taxes').reduce((s,t)=>s+t.amount,0);
+  const personalSpend = tx.filter(t=>t.category==='Personal').reduce((s,t)=>s+t.amount,0);
+
+  // Merrill income from imported CSV (dividends + interest from Louis' CMA only)
+  const merrillImported = inc.filter(t => t.source === 'Merrill').reduce((s,t) => s+t.amount, 0);
+  // Salary income detected from Chase CSV (payroll deposits)
+  const chaseIncome = inc.filter(t => t.source === 'Chase').reduce((s,t) => s+t.amount, 0);
+  // Fall back to $154K if no Merrill CSV imported yet
+  const fallbackMerrill = merrillImported > 0 ? 0 : (filterYear === 'all' ? 154378 : filterYear === '2025' ? 154378 : 154378/12*4);
+
+  // Total income: manual salary entry OR detected salary + Merrill dividends/interest
+  const salaryIncome = netSalary > 0 ? netSalary : chaseIncome;
+  const investIncome = merrillImported > 0 ? merrillImported : fallbackMerrill;
+  const totalIncome  = salaryIncome + investIncome;
   const netSavings  = totalIncome - totalSpend;
   const savingsRate = totalIncome > 0 ? (netSavings/totalIncome*100) : 0;
 
   // Monthly breakdown
   const months = {};
-  tx.forEach(t => {
+  filteredTx.forEach(t => {
     const key = t.year+'-'+t.month;
     if (!months[key]) months[key] = { spending:0, income:0 };
     months[key].spending += t.amount;
@@ -3547,7 +4334,7 @@ function calcSavings() {
 
   // Category breakdown
   const cats = {};
-  tx.forEach(t => { cats[t.category] = (cats[t.category]||0) + t.amount; });
+  filteredTx.forEach(t => { cats[t.category] = (cats[t.category]||0) + t.amount; });
   const topCats = Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,6);
 
   const hasData = tx.length > 0 || inc.length > 0;
@@ -3568,7 +4355,7 @@ function calcSavings() {
     }).join('');
   }
 
-  if (!hasData && manualIncome === 0) {
+  if (!hasData && grossSalary === 0) {
     el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:0.8rem;">Import your Chase or BarclayCard CSV statements to auto-populate,<br>or tap Edit to enter income manually.</div>';
     return;
   }
@@ -3586,6 +4373,7 @@ function calcSavings() {
       <div style="background:var(--surface2);border-radius:10px;padding:10px;text-align:center;">
         <div style="font-size:0.62rem;color:var(--text-muted);text-transform:uppercase;">Income</div>
         <div style="font-family:'DM Mono',monospace;font-size:0.82rem;color:var(--green);margin-top:4px;">${fmt(totalIncome,true)}</div>
+        <div style="font-size:0.62rem;color:var(--text-muted);margin-top:3px;">${salaryIncome>0?fmt(salaryIncome,true)+' salary':''} ${investIncome>0?'+ '+fmt(investIncome,true)+' invest':''}</div>
       </div>
       <div style="background:var(--surface2);border-radius:10px;padding:10px;text-align:center;">
         <div style="font-size:0.62rem;color:var(--text-muted);text-transform:uppercase;">Spending</div>
@@ -3602,11 +4390,12 @@ function calcSavings() {
       <div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Top Spending Categories</div>
       ${topCats.map(([cat,amt]) => {
         const pct = totalSpend>0?(amt/totalSpend*100).toFixed(0):0;
-        return '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">' +
+        return '<div onclick="showCategoryDrilldown(\''+cat+'\')" style="display:flex;align-items:center;gap:8px;margin-bottom:6px;cursor:pointer;padding:4px;border-radius:8px;transition:background 0.15s;" onmouseover="this.style.background=\'var(--surface2)\'" onmouseout="this.style.background=\'\'">' +
           '<div style="font-size:0.75rem;color:var(--text-muted);width:90px;flex-shrink:0;">' + cat + '</div>' +
           '<div style="flex:1;background:var(--border);border-radius:3px;height:6px;"><div style="width:' + pct + '%;height:100%;background:var(--gold);border-radius:3px;"></div></div>' +
           '<div style="font-family:\'DM Mono\',monospace;font-size:0.72rem;color:var(--text);width:70px;text-align:right;">' + fmt(amt,true) + '</div>' +
           '<div style="font-size:0.68rem;color:var(--text-muted);width:30px;text-align:right;">' + pct + '%</div>' +
+          '<div style="font-size:0.65rem;color:var(--gold);flex-shrink:0;">›</div>' +
           '</div>';
       }).join('')}
     </div>` : ''}
@@ -3614,6 +4403,7 @@ function calcSavings() {
     <div style="background:var(--surface2);border-radius:10px;padding:12px;font-size:0.78rem;color:var(--text-dim);">
       At this savings rate, you are adding <strong style="color:var(--green);">${fmt(Math.max(netSavings,0),true)}</strong> per ${periodLabel==='All Time'?'period':'year'} to your wealth.
       ${totalIncome>0?'Your portfolio generates <strong style="color:var(--green);">' + fmt(154378,true) + '/yr</strong> in dividends — far exceeding your savings contributions.':''}
+      ${savingsExcludeTaxes||savingsExcludePersonal?'<div style="margin-top:6px;font-size:0.72rem;color:var(--text-muted);">Excluded: '+(savingsExcludeTaxes?'Taxes '+fmt(taxSpend,true):'')+(savingsExcludeTaxes&&savingsExcludePersonal?' · ':'')+(savingsExcludePersonal?'Personal '+fmt(personalSpend,true):'')+'</div>':''}
     </div>`;
 
   // Monthly chart
@@ -3645,6 +4435,131 @@ function calcSavings() {
   }
 }
 
+
+// ── CATEGORY DRILLDOWN ───────────────────────────────────────────
+function showCategoryDrilldown(cat) {
+  closeMover();
+  const filterYear = savingsPeriod === 'all' ? null : savingsPeriod;
+  const txAll = savingsData.transactions;
+  const tx = filterYear ? txAll.filter(t => t.year === filterYear) : txAll;
+  const catTx = tx.filter(t => t.category === cat).sort((a,b) => new Date(b.date) - new Date(a.date));
+
+  const modal = document.getElementById('cat-drilldown-modal');
+  const title = document.getElementById('drilldown-title');
+  const summary = document.getElementById('drilldown-summary');
+  const list = document.getElementById('drilldown-list');
+  const reclassBar = document.getElementById('reclassify-bar');
+  if (!modal) return;
+
+  const total = catTx.reduce((s,t) => s+t.amount, 0);
+  const avg   = catTx.length ? total/catTx.length : 0;
+
+  title.textContent = cat + ' — ' + fmt(total);
+
+  // Show reclassify bar (always useful for fixing past imports)
+  if (reclassBar) reclassBar.style.display = 'flex';
+
+  summary.innerHTML = `
+    <div style="display:flex;gap:16px;flex-wrap:wrap;">
+      <div><span style="color:var(--text-muted);">Transactions</span> <strong style="font-family:'DM Mono',monospace;">${catTx.length}</strong></div>
+      <div><span style="color:var(--text-muted);">Total</span> <strong style="font-family:'DM Mono',monospace;color:var(--red);">${fmt(total)}</strong></div>
+      <div><span style="color:var(--text-muted);">Avg</span> <strong style="font-family:'DM Mono',monospace;">${fmt(avg)}</strong></div>
+    </div>`;
+
+  // Learned rules for this category
+  const catRules = learnedRules.filter(r => r.category === cat);
+  const rulesHTML = catRules.length ? `
+    <div style="background:rgba(201,168,76,0.08);border:1px solid rgba(201,168,76,0.25);border-radius:10px;padding:10px 12px;margin-bottom:14px;">
+      <div style="font-size:0.68rem;color:var(--gold-light);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">
+        Learned Rules (${catRules.length})
+        <span style="font-size:0.62rem;color:var(--text-muted);text-transform:none;margin-left:6px;">— tap ✕ to remove</span>
+      </div>
+      ${catRules.map(r => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid rgba(201,168,76,0.15);">
+          <div style="font-family:'DM Mono',monospace;font-size:0.72rem;color:var(--text);">"${r.keyword}"</div>
+          <button onclick="deleteRule('${r.keyword.replace(/'/g,"\\'")}','${cat}')"
+            style="background:none;border:none;color:var(--red);font-size:0.72rem;cursor:pointer;padding:2px 6px;">✕ remove</button>
+        </div>`).join('')}
+    </div>` : '';
+
+  // Group by merchant for summary
+  const merchants = {};
+  catTx.forEach(t => {
+    const key = t.description.substring(0, 30);
+    if (!merchants[key]) merchants[key] = { count:0, total:0 };
+    merchants[key].count++;
+    merchants[key].total += t.amount;
+  });
+  const topMerchants = Object.entries(merchants).sort((a,b) => b[1].total - a[1].total).slice(0, 15);
+
+  const catColor = CAT_COLORS[cat] || '#9ca3af';
+
+  list.innerHTML = rulesHTML + `
+    <div style="margin-bottom:20px;">
+      <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">Top Merchants</div>
+      ${topMerchants.map(([name, data]) => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border);">
+          <div style="min-width:0;flex:1;">
+            <div style="font-size:0.82rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${name}</div>
+            <div style="font-size:0.68rem;color:var(--text-muted);margin-top:2px;">${data.count} transaction${data.count>1?'s':''}</div>
+          </div>
+          <div style="font-family:'DM Mono',monospace;font-size:0.85rem;color:${catColor};flex-shrink:0;margin-left:12px;">${fmt(data.total)}</div>
+        </div>`).join('')}
+    </div>
+    <div>
+      <div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">
+        All Transactions
+        <span style="font-size:0.62rem;color:var(--gold);text-transform:none;margin-left:4px;">— tap Move › to recategorize &amp; teach</span>
+      </div>
+      ${catTx.length === 0 ? '<div style="text-align:center;padding:20px;color:var(--text-muted);font-size:0.8rem;">No transactions in this category for the selected period.</div>' :
+        catTx.map(t => {
+          const kw = extractRuleKeyword(t.description);
+          const kwSafe = kw.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+          const descSafe = t.description.substring(0,45).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+          return `<div style="padding:8px 0 10px;border-bottom:1px solid var(--border);">
+            <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:0.78rem;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${t.description}</div>
+                <div style="font-size:0.65rem;color:var(--text-muted);margin-top:2px;">${t.date} · ${t.source}</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+                <div style="font-family:'DM Mono',monospace;font-size:0.8rem;color:${catColor};">${fmt(t.amount)}</div>
+                <button onclick="openMove('${kwSafe}','${cat}','${descSafe}')"
+                  style="background:var(--gold-dim);border:1px solid var(--gold);border-radius:8px;padding:4px 10px;color:var(--gold-light);font-size:0.68rem;font-weight:500;cursor:pointer;white-space:nowrap;flex-shrink:0;">Move ›</button>
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
+    </div>`;
+
+  modal.style.display = 'block';
+  modal.scrollTop = 0;
+  document.body.style.overflow = 'hidden';
+}
+
+function closeDrilldown() {
+  closeMover();
+  const modal = document.getElementById('cat-drilldown-modal');
+  if (modal) modal.style.display = 'none';
+  document.body.style.overflow = '';
+}
+
+function doReclassify() {
+  const btn = document.querySelector('#reclassify-bar button');
+  if (btn) { btn.textContent = 'Working…'; btn.disabled = true; }
+  const changed = reclassifyAllTransactions();
+  calcSavings();
+  refreshSpendChart();
+  const bar = document.getElementById('reclassify-bar');
+  if (bar) {
+    bar.innerHTML = `<span style="font-size:0.75rem;color:var(--green);">✓ Done — ${changed} transaction${changed!==1?'s':''} updated.</span>`;
+    setTimeout(() => { bar.style.display = 'none'; }, 3000);
+  }
+  // Re-open the same category so the list refreshes
+  const title = document.getElementById('drilldown-title');
+  const cat = title ? title.textContent.split(' — ')[0] : null;
+  if (cat) setTimeout(() => showCategoryDrilldown(cat), 200);
+}
 
 // ── WELLNESS TAB ────────────────────────────────────────────────
 // ── TREND ANALYSIS TAB ────────────────────────────────────────────
@@ -3945,6 +4860,77 @@ let legacyChartInst = null;
 let peaceInited = false;
 
 function initPeaceTab() {
+  // Populate real spending banner and update all Peace inputs
+  const realSpend  = getRealAnnualSpend(true, false);
+  const realMonthly= getRealMonthlySpend(true, false);
+  const realIncome = getRealAnnualIncome();
+
+  // Update all Peace tab spending inputs with real data
+  if (realSpend) {
+    const peaceSpendEl = document.getElementById('peace-spend');
+    if (peaceSpendEl && (+peaceSpendEl.value === 80000 || !peaceSpendEl.value)) {
+      peaceSpendEl.value = realSpend;
+    }
+    const failSpendEl = document.getElementById('fail-spend');
+    if (failSpendEl && (+failSpendEl.value === 80000 || !failSpendEl.value)) {
+      failSpendEl.value = realSpend;
+    }
+    const sdSlider = document.getElementById('spenddown-slider');
+    if (sdSlider && +sdSlider.value === 80000) sdSlider.value = realSpend;
+    // Trigger gauge recalculation
+    setTimeout(() => {
+      if (typeof drawGauge === 'function') drawGauge();
+      if (typeof updateAllPeace === 'function') updateAllPeace();
+      if (typeof calcSpendDown === 'function') calcSpendDown();
+      if (typeof calcFailScenarios === 'function') calcFailScenarios();
+    }, 100);
+  }
+
+  const banner = document.getElementById('peace-spending-banner');
+  const grid   = document.getElementById('peace-spending-grid');
+  const note   = document.getElementById('peace-spending-note');
+  if (banner && realSpend) {
+    banner.style.display = 'block';
+    const nw = calcNetWorth();
+    const wr = nw > 0 ? (realSpend/nw*100).toFixed(2) : '—';
+    const cats = getRealSpendingByCategory(true);
+    const topCat = Object.entries(cats).sort((a,b)=>b[1]-a[1]).slice(0,5);
+    const txCount = savingsData.transactions.length;
+    const lastDate = savingsData.transactions.length
+      ? savingsData.transactions.map(t=>t.date).sort().pop()
+      : null;
+    grid.innerHTML = [
+      { label:'Monthly Spend', val: fmt(realMonthly||0), color:'var(--red)' },
+      { label:'Annual Spend',  val: fmt(realSpend),      color:'var(--red)' },
+      { label:'Withdrawal Rate',val: wr+'%',             color: parseFloat(wr)<3?'var(--green)':'var(--gold-light)' },
+    ].map(s=>`<div style="background:var(--surface);border-radius:10px;padding:8px;text-align:center;">
+      <div style="font-size:0.6rem;color:var(--text-muted);text-transform:uppercase;">${s.label}</div>
+      <div style="font-family:'DM Mono',monospace;font-size:0.85rem;color:${s.color};margin-top:3px;">${s.val}</div>
+    </div>`).join('');
+
+    // Tappable category breakdown
+    if (note && topCat.length) {
+      note.innerHTML = `
+        <div style="font-size:0.65rem;color:var(--text-muted);margin-bottom:6px;">
+          Top spending categories — tap to see transactions
+          <span style="margin-left:6px;color:var(--text-dim);">${txCount} tx · thru ${lastDate||'?'}</span>
+        </div>
+        ${topCat.map(([c,v]) => {
+          const pct = realSpend > 0 ? Math.round(v/realSpend*100) : 0;
+          return `<div onclick="showCategoryDrilldown('${c}')"
+            style="display:flex;align-items:center;gap:7px;margin-bottom:5px;cursor:pointer;padding:3px 4px;border-radius:7px;"
+            onmouseover="this.style.background='var(--surface)'" onmouseout="this.style.background=''">
+            <div style="font-size:0.68rem;color:var(--text-muted);width:82px;flex-shrink:0;">${c}</div>
+            <div style="flex:1;background:var(--border);border-radius:3px;height:5px;">
+              <div style="width:${pct}%;height:100%;background:var(--gold);border-radius:3px;"></div>
+            </div>
+            <div style="font-family:'DM Mono',monospace;font-size:0.68rem;color:var(--text);width:52px;text-align:right;">${fmt(v,true)}</div>
+            <div style="font-size:0.62rem;color:var(--gold);flex-shrink:0;">›</div>
+          </div>`;
+        }).join('')}
+        <div style="font-size:0.63rem;color:var(--text-dim);margin-top:4px;">Excludes taxes &amp; personal transfers</div>`;
+    }
+  }
   updateAllPeace();
   calcSpendDown();
   calcLegacy();
@@ -4168,6 +5154,10 @@ function setSpendDownView(mode, btn) {
 
 function calcSpendDown() {
   const slider = document.getElementById('spenddown-slider');
+  const realSDSpend = getRealAnnualSpend(true, false);
+  if (realSDSpend && slider && +slider.value === 80000) {
+    slider.value = realSDSpend;
+  }
   const labelEl = document.getElementById('spenddown-label');
   const resultEl = document.getElementById('spenddown-result');
   if (!slider||!resultEl) return;
@@ -4826,6 +5816,242 @@ function initPlanningTab() {
 }
 
 
+// ── GITHUB CLOUD SYNC ────────────────────────────────────────────
+// ── GITHUB CLOUD SYNC ─────────────────────────────────────────────
+const GITHUB_REPO  = 'newmanlo/dashboard';
+const GITHUB_FILE  = 'dashboard-data.json';
+const GITHUB_API   = 'https://api.github.com/repos/' + GITHUB_REPO + '/contents/' + GITHUB_FILE;
+
+const SYNC_KEYS = [
+  'wd_accounts','wd_holdings','wd_assetclass','wd_import_history',
+  'wd_loans','wd_estate','wd_worries','wd_journal',
+  'wd_trend_history','wd_perf_history','wd_annual_spend','wd_savings_data',
+];
+
+// Token stored securely in localStorage only - never in code
+let syncToken = localStorage.getItem('wd_gh_token') || '';
+let syncInProgress = false;
+let autoSyncTimer = null;
+
+function showSyncBar(msg, status, time) {
+  const bar  = document.getElementById('sync-bar');
+  const dot  = document.getElementById('sync-dot');
+  const msgEl= document.getElementById('sync-msg');
+  const timeEl=document.getElementById('sync-time');
+  if (!bar) return;
+  bar.classList.add('visible');
+  dot.className = 'sync-dot sync-' + status;
+  msgEl.textContent = msg;
+  if (time) timeEl.textContent = time;
+  if (status === 'ok') setTimeout(()=>bar.classList.remove('visible'), 3000);
+}
+
+function hideSyncBar() {
+  document.getElementById('sync-bar')?.classList.remove('visible');
+}
+
+function toggleSyncSetup() {
+  const setup = document.getElementById('sync-setup');
+  const btn   = document.getElementById('sync-setup-btn');
+  if (!setup) return;
+  const visible = setup.style.display !== 'none';
+  setup.style.display = visible ? 'none' : 'block';
+  btn.textContent = visible ? 'Set Up Cloud Sync' : 'Cancel';
+}
+
+function saveGitHubToken() {
+  const token = document.getElementById('gh-token-input')?.value?.trim();
+  if (!token || !token.startsWith('ghp_')) {
+    alert('Please enter a valid GitHub token starting with ghp_');
+    return;
+  }
+  syncToken = token;
+  localStorage.setItem('wd_gh_token', token);
+  updateSyncUI();
+  // Immediately try to sync
+  syncToGitHub(false).then(() => loadFromGitHub(false));
+}
+
+function disconnectGitHub() {
+  if (!confirm('Disconnect cloud sync? Your local data will be preserved.')) return;
+  syncToken = '';
+  localStorage.removeItem('wd_gh_token');
+  updateSyncUI();
+}
+
+function updateSyncUI() {
+  const connected  = document.getElementById('sync-connected');
+  const setup      = document.getElementById('sync-setup');
+  const setupBtn   = document.getElementById('sync-setup-btn');
+  const badge      = document.getElementById('sync-status-badge');
+  if (syncToken) {
+    if (connected) connected.style.display = 'block';
+    if (setup)     setup.style.display     = 'none';
+    if (setupBtn)  setupBtn.style.display  = 'none';
+    if (badge) { badge.textContent='Connected'; badge.style.background='rgba(74,222,128,0.1)'; badge.style.color='var(--green)'; }
+  } else {
+    if (connected) connected.style.display = 'none';
+    if (setup)     setup.style.display     = 'none';
+    if (setupBtn)  setupBtn.style.display  = 'block';
+    if (badge) { badge.textContent='Off'; badge.style.background='var(--surface2)'; badge.style.color='var(--text-muted)'; }
+  }
+}
+
+function getAllData() {
+  const data = {};
+  SYNC_KEYS.forEach(k => {
+    const v = localStorage.getItem(k);
+    if (v && v !== 'null') data[k] = v;
+  });
+  return data;
+}
+
+async function syncToGitHub(showFeedback) {
+  if (!syncToken || syncInProgress) return;
+  syncInProgress = true;
+  if (showFeedback) showSyncBar('Saving to cloud...', 'busy');
+
+  try {
+    // Get current file SHA (needed for updates)
+    let sha = null;
+    try {
+      const checkRes = await fetch(GITHUB_API, {
+        headers: { 'Authorization': 'token ' + syncToken, 'Accept': 'application/vnd.github.v3+json' }
+      });
+      if (checkRes.ok) {
+        const checkData = await checkRes.json();
+        sha = checkData.sha;
+      }
+    } catch(e) {}
+
+    const data    = getAllData();
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
+    const now     = new Date().toISOString();
+
+    const body = {
+      message: 'Dashboard sync ' + now,
+      content,
+      ...(sha ? { sha } : {})
+    };
+
+    const res = await fetch(GITHUB_API, {
+      method: 'PUT',
+      headers: {
+        'Authorization': 'token ' + syncToken,
+        'Accept':        'application/vnd.github.v3+json',
+        'Content-Type':  'application/json',
+      },
+      body: JSON.stringify(body)
+    });
+
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.message || 'HTTP ' + res.status);
+    }
+
+    const timeStr = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+    localStorage.setItem('wd_last_sync', timeStr);
+    if (showFeedback) showSyncBar('Saved to cloud', 'ok', timeStr);
+
+  } catch(err) {
+    console.error('Sync error:', err);
+    if (showFeedback) showSyncBar('Sync failed: ' + err.message, 'err');
+  } finally {
+    syncInProgress = false;
+  }
+}
+
+async function loadFromGitHub(showFeedback) {
+  if (!syncToken) return;
+  if (showFeedback) showSyncBar('Loading from cloud...', 'busy');
+
+  try {
+    const res = await fetch(GITHUB_API + '?t=' + Date.now(), {
+      headers: { 'Authorization': 'token ' + syncToken, 'Accept': 'application/vnd.github.v3+json' }
+    });
+
+    if (res.status === 404) {
+      // No cloud data yet — push local data
+      if (showFeedback) showSyncBar('No cloud data yet — pushing local data...', 'busy');
+      await syncToGitHub(showFeedback);
+      return;
+    }
+
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+
+    const fileData = await res.json();
+    const jsonStr  = decodeURIComponent(escape(atob(fileData.content.replace(/\n/g,''))));
+    const data     = JSON.parse(jsonStr);
+
+    // Compare timestamps to decide which is newer
+    const cloudKeys = Object.keys(data);
+    if (!cloudKeys.length) {
+      if (showFeedback) showSyncBar('Cloud data empty — pushing local', 'busy');
+      await syncToGitHub(showFeedback);
+      return;
+    }
+
+    // Restore all keys
+    let restored = 0;
+    cloudKeys.forEach(k => {
+      if (SYNC_KEYS.includes(k) && data[k]) {
+        localStorage.setItem(k, data[k]);
+        restored++;
+      }
+    });
+
+    // Reload app state from localStorage
+    const savedAccts = JSON.parse(localStorage.getItem('wd_accounts') || 'null');
+    if (savedAccts) {
+      accounts.length = 0;
+      savedAccts.forEach(a => accounts.push(a));
+    }
+    const savedHoldings = JSON.parse(localStorage.getItem('wd_holdings') || 'null');
+    if (savedHoldings) Object.assign(holdingsData, savedHoldings);
+    const savedAC = JSON.parse(localStorage.getItem('wd_assetclass') || 'null');
+    if (savedAC) Object.assign(assetClassData, savedAC);
+
+    renderAccounts();
+    if (document.getElementById('tab-holdings')?.classList.contains('active')) renderHoldings();
+
+    const timeStr = new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
+    if (showFeedback) showSyncBar('Loaded from cloud (' + restored + ' items)', 'ok', timeStr);
+
+  } catch(err) {
+    console.error('Load error:', err);
+    if (showFeedback) showSyncBar('Load failed: ' + err.message, 'err');
+  }
+}
+
+// Auto-sync: push to GitHub 5 seconds after any data change
+function scheduleAutoSync() {
+  if (!syncToken) return;
+  clearTimeout(autoSyncTimer);
+  autoSyncTimer = setTimeout(() => syncToGitHub(false), 5000);
+}
+
+// Patch saveAccounts and saveHoldings to trigger auto-sync
+const _origSaveAccounts = saveAccounts;
+saveAccounts = function() { _origSaveAccounts(); scheduleAutoSync(); };
+
+const _origSaveHoldings = saveHoldings;
+saveHoldings = function() { _origSaveHoldings(); scheduleAutoSync(); };
+
+const _origSaveTrend = saveTrendHistory;
+saveTrendHistory = function() { _origSaveTrend(); scheduleAutoSync(); };
+
+// Init sync on page load
+async function initCloudSync() {
+  updateSyncUI();
+  if (!syncToken) return;
+  // Load from cloud on startup (cloud wins as source of truth)
+  showSyncBar('Connecting to cloud...', 'busy');
+  await loadFromGitHub(false);
+  const lastSync = localStorage.getItem('wd_last_sync');
+  showSyncBar('Cloud sync active', 'ok', lastSync ? 'Last sync: ' + lastSync : '');
+}
+
+
 // ── DATA MIGRATION ───────────────────────────────────────────────
 function exportAllData() {
   const keys = ['wd_accounts','wd_holdings','wd_assetclass','wd_import_history','wd_loans','wd_estate','wd_worries','wd_journal','wd_trend_history','wd_perf_history','wd_annual_spend'];
@@ -4877,6 +6103,7 @@ renderAccounts();
 initCharts();
 renderMCSnapshot();
 renderAmIOK();
+initCloudSync();
 
 // ── IMPORT ENGINE ─────────────────────────────────────────────────
 let importState = { inst: null, instName: null, balance: null, fileName: null };
@@ -4925,8 +6152,8 @@ function parseCSV(file) {
   Papa.parse(file, {
     complete: (results) => {
       log('Parsed ' + results.data.length + ' rows from CSV');
-      // Auto-process savings data for Chase and BarclayCard
-      if (importState.inst === 'chase' || importState.inst === 'barclaycard') {
+      // Auto-process savings data for Chase, BarclayCard and Merrill
+      if (['chase','barclaycard','merrill'].includes(importState.inst)) {
         processSavingsImport(results.data, importState.inst);
       }
       if (importType === 'holdings') {
@@ -5005,6 +6232,17 @@ async function parsePDF(file) {
     } else {
       document.getElementById('prev-status').innerHTML = '<span class="status-badge warn">Enter manually</span>';
       log('Could not auto-detect — please enter balance manually above');
+      // BarclayCard transaction CSV has no balance — use existing or skip
+      if (importState.inst === 'barclaycard') {
+        const existingAcct = accounts.find(a => a.id === 'barclaycard');
+        const existingBal  = existingAcct ? Math.abs(existingAcct.balance) : 0;
+        if (existingBal) {
+          document.getElementById('prev-balance').value = existingBal.toFixed(2);
+          document.getElementById('prev-status').innerHTML = '<span class="status-badge ok">Using saved balance — update if needed</span>';
+        }
+        document.getElementById('preview-box').classList.add('show');
+        log('BarclayCard: ' + (results.data.length-1) + ' transactions ready. Confirm your current balance and tap Apply to Dashboard.');
+      }
     }
   } catch(err) {
     log('Auto-parse unavailable on this device (' + err.message + ')');
@@ -5332,6 +6570,67 @@ function log(msg) {
   if (!el) return;
   el.innerHTML += '› ' + msg + '<br>';
   el.scrollTop = el.scrollHeight;
+}
+
+function resetHoldingsOnly() {
+  if (!confirm('Reset holdings data only? Your account balances, trends, and other data will be preserved.')) return;
+  // Clear only holdings and asset class data
+  localStorage.removeItem('wd_holdings');
+  localStorage.removeItem('wd_assetclass');
+  // Reload holdings from defaults without full page reload
+  holdingsData = {
+    vanguard401: [
+      { ticker:'VTIVX', name:'Vanguard Target Retirement 2045', shares:1914.8, costBasis:0, currentValue:0, type:'Fund' },
+    ],
+    vanguard: [
+      { ticker:'VTIVX', name:'Vanguard Target Retirement 2045', shares:1122.986, costBasis:38507.21, currentValue:38507.21, type:'Fund' },
+    ],
+    merrill: [
+      { ticker:'CAIBX', name:'American Cap Income Builder', shares:1224.275, costBasis:76105.84, currentValue:98419.47, type:'Fund' },
+      { ticker:'ANCFX', name:'American Fundamental Investors', shares:1337.919, costBasis:88141.10, currentValue:132574.36, type:'Fund' },
+      { ticker:'ANWPX', name:'American New Perspective', shares:1818.792, costBasis:125000.80, currentValue:131589.59, type:'Fund' },
+      { ticker:'AWSHX', name:'American Washington Mutual', shares:1941.606, costBasis:94606.34, currentValue:129660.43, type:'Fund' },
+      { ticker:'AAPL',  name:'Apple Inc.', shares:1210, costBasis:4024.94, currentValue:323808.10, type:'Equity' },
+      { ticker:'BRKB',  name:'Berkshire Hathaway B', shares:600, costBasis:74278.00, currentValue:283686.00, type:'Equity' },
+      { ticker:'CSCO',  name:'Cisco Systems', shares:1750, costBasis:12430.50, currentValue:154455.00, type:'Equity' },
+      { ticker:'CL',    name:'Colgate-Palmolive', shares:750, costBasis:4874.07, currentValue:63127.50, type:'Equity' },
+      { ticker:'JNJ',   name:'Johnson & Johnson', shares:600, costBasis:15674.70, currentValue:135204.00, type:'Equity' },
+      { ticker:'JPM',   name:'JPMorgan Chase', shares:500, costBasis:9562.78, currentValue:155815.00, type:'Equity' },
+      { ticker:'MRK',   name:'Merck & Co.', shares:175, costBasis:243.81, currentValue:19290.25, type:'Equity' },
+      { ticker:'MSFT',  name:'Microsoft Corp.', shares:2825, costBasis:17508.38, currentValue:1200116.50, type:'Equity' },
+      { ticker:'UNP',   name:'Union Pacific', shares:145, costBasis:2075.31, currentValue:38991.95, type:'Equity' },
+      { ticker:'WFC',   name:'Wells Fargo', shares:24200, costBasis:16113.93, currentValue:1949552.00, type:'Equity' },
+      { ticker:'TFDXX', name:'BLF FedFund', shares:29663, costBasis:29663.00, currentValue:29663.00, type:'Cash' },
+      { ticker:'MLBDP', name:'ML Bank Deposit Program', shares:179760, costBasis:179760.00, currentValue:179760.00, type:'Cash' },
+      { ticker:'ARES27', name:'Ares Capital 7.00% 2027', shares:90000, costBasis:92167.20, currentValue:92960.39, type:'Bond' },
+      { ticker:'GM27E',  name:'General Motors Finl 5.35% 2027', shares:200000, costBasis:202145.80, currentValue:205195.66, type:'Bond' },
+      { ticker:'GM28E',  name:'General Motors Finl 5.05% 2028', shares:345000, costBasis:348527.19, currentValue:349538.95, type:'Bond' },
+      { ticker:'JEF30',  name:'Jefferies Grp 4.15% 2030', shares:290000, costBasis:281154.18, currentValue:285242.87, type:'Bond' },
+      { ticker:'KEY49',  name:'KeyCorp 2.55% 2029', shares:250000, costBasis:227770.35, currentValue:235340.41, type:'Bond' },
+      { ticker:'SON26',  name:'Sonoco Products 4.45% 2026', shares:250000, costBasis:249652.73, currentValue:251843.05, type:'Bond' },
+      { ticker:'EIX29',  name:'Southern Cal Edison 6.65% 2029', shares:100000, costBasis:105815.10, currentValue:105106.27, type:'Bond' },
+      { ticker:'DOUG30', name:'Douglas Cnty NE 3.10% 2030', shares:60000, costBasis:60000.00, currentValue:58066.20, type:'Muni' },
+      { ticker:'SARPY28',name:'Sarpy Cnty NE 3.00% 2028', shares:5000, costBasis:5000.00, currentValue:4951.30, type:'Muni' },
+      { ticker:'SARPY26',name:'Sarpy Cnty NE 3.60% 2026', shares:25000, costBasis:25000.00, currentValue:25256.25, type:'Muni' },
+      { ticker:'UNEB27', name:'Univ Nebraska 3.00% 2027', shares:30000, costBasis:30240.87, currentValue:30465.19, type:'Muni' },
+      { ticker:'VIPF27', name:'Virgin Islands PF 5.00% 2027', shares:30000, costBasis:30000.00, currentValue:30200.43, type:'Muni' },
+    ],
+    alight: [
+      { ticker:'VFIAX', name:'Vanguard 500 Index Admiral', shares:11.486, costBasis:0, currentValue:0, type:'Fund' },
+      { ticker:'VTSNX', name:'Vanguard Total Intl Stock Index Admiral', shares:29.079, costBasis:0, currentValue:0, type:'Fund' },
+    ],
+  };
+  assetClassData = {
+    merrill: { cash:209423.00, fixedIncome:1674166.97, equities:4324046.30, mutualFunds:492243.85, other:0 },
+    vanguard401: { cash:0, fixedIncome:0, equities:70011.65, mutualFunds:0, other:0 },
+    vanguard:    { cash:0, fixedIncome:0, equities:38507.21, mutualFunds:0, other:0 },
+    alight:      { cash:0, fixedIncome:0, equities:0, mutualFunds:0, other:0 },
+  };
+  saveHoldings();
+  saveAssetClasses();
+  renderHoldings();
+  renderAssetClasses();
+  alert('Holdings reset successfully. Your account balances are unchanged. Tap Live Prices to refresh values.');
 }
 
 function clearCache() {
